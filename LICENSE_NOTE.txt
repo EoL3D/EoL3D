@@ -1,0 +1,8 @@
+E3D: End-of-Life Desktop Disassembly Dataset -- pre-release.
+
+Published on Hugging Face (ChangChrisLiu/E3D-Desktop-Disassembly) by its owners at
+Texas A&M University. A licence and a citation are added with the first tagged
+release; until then the data is provided for inspection and research evaluation.
+Please do not redistribute copies or train models for release on it before then
+without permission from the dataset owners (contact: ChangChrisLiu on Hugging
+Face or GitHub). The annotations may still change between releases.

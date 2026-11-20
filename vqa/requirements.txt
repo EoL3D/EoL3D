@@ -1,0 +1,7 @@
+# The pack's tools run on Python >= 3.11 with these two packages; nothing else
+# (no numpy, no OpenCV, no Qt, no `tda` install -- the modules the scorer needs
+# are vendored under tools/tda).
+PyYAML>=6.0
+# Pillow is needed only by vlm_to_chat.py --roi view / --composite / --max-side
+# (crops and composites); the scorer and the self-check do not import it.
+Pillow>=10.0
