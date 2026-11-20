@@ -8,6 +8,8 @@ question-answer pairs, 3D reconstructions, operator video and robot demonstratio
 - Guide: <https://eol3d.github.io/guide.html> (every folder and file, tasks and scoring)
 - Data: <https://huggingface.co/datasets/ChangChrisLiu/E3D-Desktop-Disassembly> (the repository still carries the
   dataset's earlier name, E3D-Desktop-Disassembly; it holds the same data)
+- Annotation tool: <https://github.com/ChangChrisLiu/DataLabelToolForEoLDesktopDisassembly> (the desktop tool the
+  annotations were made with, and the exporters behind every released folder)
 
 ## What is here
 
@@ -106,7 +108,13 @@ need no code from this repository; the layout is described in the guide.
 The desktop tool the annotations were made with, the exporters behind every released folder and their tests are in
 <https://github.com/ChangChrisLiu/DataLabelToolForEoLDesktopDisassembly>.
 
-## Terms
+## Licence
 
-Pre-release: see [`LICENSE_NOTE.txt`](LICENSE_NOTE.txt). A licence and a citation come with the first tagged
-release; until then, please cite the website.
+The code in this repository is released under the [MIT licence](LICENSE).
+
+The dataset is not covered by it. The data is in pre-release and has its own terms:
+[`DATA_TERMS.txt`](DATA_TERMS.txt). A data licence and a citation come with the first tagged release; until then,
+please cite the website.
+
+Third-party packages keep their own licences. The YOLO baseline in `detection/` runs on the Ultralytics package
+(AGPL-3.0); the Mask R-CNN baseline on torchvision (BSD-3-Clause); the scorer on pycocotools.
