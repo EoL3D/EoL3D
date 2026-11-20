@@ -1,6 +1,7 @@
-E3D: End-of-Life Desktop Disassembly Dataset -- pre-release.
+EoL3D: step-by-step teardowns of end-of-life desktop computers -- pre-release.
 
-Published on Hugging Face (ChangChrisLiu/E3D-Desktop-Disassembly) by its owners at
+Published on Hugging Face (ChangChrisLiu/E3D-Desktop-Disassembly, which still carries
+the dataset's earlier name) by its owners at
 Texas A&M University. A licence and a citation are added with the first tagged
 release; until then the data is provided for inspection and research evaluation.
 Please do not redistribute copies or train models for release on it before then

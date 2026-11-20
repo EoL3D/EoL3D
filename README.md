@@ -1,4 +1,20 @@
-# EoL3D
+<h1 align="center">
+  <a href="https://eol3d.github.io"><img src="media/logo.png" alt="EoL3D" width="360"></a>
+</h1>
+
+<p align="center">Step-by-step teardowns of end-of-life desktop computers</p>
+
+<p align="center">
+  <a href="https://eol3d.github.io"><b>Website</b></a> &nbsp;·&nbsp;
+  <a href="https://eol3d.github.io/guide.html"><b>Guide</b></a> &nbsp;·&nbsp;
+  <a href="https://huggingface.co/datasets/ChangChrisLiu/E3D-Desktop-Disassembly"><b>Data</b></a> &nbsp;·&nbsp;
+  <a href="https://eol3d.github.io/#benchmark"><b>Benchmark</b></a> &nbsp;·&nbsp;
+  <a href="https://eol3d.github.io/#explore"><b>3D explorer</b></a>
+</p>
+
+<p align="center">
+  <img src="media/teardown.webp" alt="Eight desktops taken apart in step, as the scanner saw them after every step" width="800">
+</p>
 
 Code for **EoL3D**, a dataset of 66 end-of-life desktop computers taken apart by hand, one step at a time. After
 every step the machine is recorded from four fixed views; instance masks, part states, removal relations,
@@ -10,6 +26,19 @@ question-answer pairs, 3D reconstructions, operator video and robot demonstratio
   dataset's earlier name, E3D-Desktop-Disassembly; it holds the same data)
 - Annotation tool: <https://github.com/ChangChrisLiu/DataLabelToolForEoLDesktopDisassembly> (the desktop tool the
   annotations were made with, and the exporters behind every released folder)
+
+## The dataset in two pictures
+
+<p align="center">
+  <img src="media/capture.webp" alt="The capture rig with its devices marked: a 3D scanner looking straight down, two OAK-D cameras, a RealSense camera, two video cameras and the desktop on the bench. Beside it the four things done for every desktop: taken apart one step at a time, four views after every step, annotated backward, then questions, video and robot data." width="860">
+</p>
+
+<p align="center">
+  <img src="media/stages.webp" alt="The four stages the teardowns serve: perception, understanding, planning and execution. Shown is perception: four steps of one teardown with the masks of the parts, and one frame with the complete extent and the visible area of every part." width="860">
+</p>
+
+Both are sections of the [website](https://eol3d.github.io), where the stages can be opened one by one and a
+teardown can be stepped through in 3D.
 
 ## What is here
 
@@ -69,7 +98,7 @@ python vqa/vlm_score.py --truth $PACK/eval_v3/multi.jsonl --pred runs/my_model.m
 
 Each record carries its desktop's split in `label.split`; the scorer reports every task with strict and lenient
 parsing and intervals from a bootstrap over desktops. `vqa/vlm_run/` holds the scripts that run open models
-(vLLM) and closed models through an API.
+(vLLM) and closed models through an API. Every script is described in [`vqa/README.md`](vqa/README.md).
 
 ## Depth from a single image
 
@@ -113,8 +142,7 @@ The desktop tool the annotations were made with, the exporters behind every rele
 The code in this repository is released under the [MIT licence](LICENSE).
 
 The dataset is not covered by it. The data is in pre-release and has its own terms:
-[`DATA_TERMS.txt`](DATA_TERMS.txt). A data licence and a citation come with the first tagged release; until then,
-please cite the website.
+[`DATA_TERMS.txt`](DATA_TERMS.txt). A data licence and a citation are coming soon.
 
 Third-party packages keep their own licences. The YOLO baseline in `detection/` runs on the Ultralytics package
 (AGPL-3.0); the Mask R-CNN baseline on torchvision (BSD-3-Clause); the scorer on pycocotools.
