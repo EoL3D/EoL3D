@@ -18,7 +18,7 @@ on_bench_needs_geom: true
 
 # Classes an *implied* instance may be created for (by the annotation tool).
 #
-# Four teardowns (D49, D62, D63, D64) stop before the motherboard is lifted out:
+# Four disassembly sequences (D49, D62, D63, D64) stop before the motherboard is lifted out:
 # the sheet unscrews it, unplugs it and then ends, so the log importer never
 # names a `motherboard` and 33 connectors/screws are left pointing at a class
 # with no instance -- while the board itself is plainly visible in every frame

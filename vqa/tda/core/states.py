@@ -200,7 +200,7 @@ def initial_state(
     An override of ``removed`` is a part this machine does not have: it starts :data:`ABSENT_PLACEMENT` and marked ``absent``.
 
     A gallery-only part (:func:`tda.core.model.is_gallery_only`) is
-    left out the same way: no step ever touched it, so the teardown never
+    left out the same way: no step ever touched it, so the disassembly never
     asks for it; :func:`gallery_state` puts it on the table.
     """
     over = initial or {}
@@ -683,7 +683,7 @@ def needs_geom(
 # the components gallery
 # --------------------------------------------------------------------------- #
 #: A step after every step: :func:`state_at` folds the whole log up to it,
-#: which is the state at the end of the teardown.
+#: which is the state at the end of the disassembly.
 AFTER_LAST_STEP = 1 << 30
 #: Where a gallery part is in the frame state: the **mask chain**. A part laid
 #: out on the table is drawn like a part in the chassis -- a mask, layered with
@@ -701,14 +701,14 @@ def is_gallery_part(instances: dict[str, InstanceRec], final: FrameState, key: s
                     excluded: Iterable[str] = ()) -> bool:
     """Is ``key`` one of the parts the components gallery asks for?
 
-    Every real instance that is ``removed`` at the end of the teardown and
+    Every real instance that is ``removed`` at the end of the disassembly and
     left the chassis in its own right -- not inside a parent
     (:func:`gone_with_parent`: the clips on the board are *in* the board) --
     except the classes in ``excluded`` (:data:`tda.core.model.GALLERY_EXCLUDED_CLASSES`),
     which are not identifiable in a layout. A Label Studio draft never is.
 
     A gallery-only part always is, whatever its class and whatever
-    ``final`` says: it is in no snapshot of the teardown (it has no events),
+    ``final`` says: it is in no snapshot of the disassembly (it has no events),
     and the annotator added it because it lies on the table.
 
     A sequence part of an excluded class with ``attrs.in_gallery``
@@ -734,13 +734,13 @@ def gallery_state(instances: dict[str, InstanceRec], events: list[StateEvent],
     """The frame state of every components-gallery shot of one desktop.
 
     One answer for all of them, because a layout photo is not a moment of the
-    teardown: the parts on the table are the ones removed by its **last** step.
+    disassembly: the parts on the table are the ones removed by its **last** step.
     Each of them is marked ``gallery`` (:func:`needs_geom` asks for a mask of
     it) in :data:`GALLERY_PLACEMENT`, keeping its ``removed`` state; every other
     instance -- what stayed in the chassis, the excluded classes, the children
     that went out inside a parent -- is ``elsewhere``, out of the picture.
 
-    The gallery-only parts, which no snapshot of the teardown
+    The gallery-only parts, which no snapshot of the disassembly
     carries, join them on the table: ``removed`` like every part there, any
     class -- a ``loose_cable``, a ``screw`` the log never counted.
     """

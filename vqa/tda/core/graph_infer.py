@@ -287,7 +287,7 @@ def infer_relational_fields(
     its *host* and nothing else: no ``fastens`` for a screw, no ``of`` for a
     RAM latch. The log never operated it, so the clock these guesses rest on
     says nothing about it, and every edge a guess would imply is one the
-    recorded teardown would then "violate".
+    recorded disassembly would then "violate".
     """
     filled: list[str] = []
     clock = None if actions is None else _Clock(actions)

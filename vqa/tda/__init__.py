@@ -1,4 +1,4 @@
-"""The subset of the Teardown Annotator (TDA) package the question-answering tools need.
+"""The subset of the annotation tool's package (tda) the question-answering tools need.
 
 The full annotation tool is linked from the top-level README of this repository.
 """

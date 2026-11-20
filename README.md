@@ -2,7 +2,7 @@
   <a href="https://eol3d.github.io"><img src="media/logo.png" alt="EoL3D" width="360"></a>
 </h1>
 
-<p align="center">Step-by-step teardowns of end-of-life desktop computers</p>
+<p align="center">Step-by-step disassembly of end-of-life desktop computers</p>
 
 <p align="center">
   <a href="https://eol3d.github.io"><b>Website</b></a> &nbsp;·&nbsp;
@@ -13,14 +13,14 @@
 </p>
 
 <p align="center">
-  <img src="media/teardown.webp" alt="Eight desktops taken apart in step, as the scanner saw them after every step" width="800">
+  <img src="media/disassembly.webp" alt="Eight desktops disassembled in step, as the scanner saw them after every step" width="800">
 </p>
 
-Code for **EoL3D**, a dataset of 66 end-of-life desktop computers taken apart by hand, one step at a time. After
+Code for **EoL3D**, a dataset of 66 end-of-life desktop computers disassembled by hand, one step at a time. After
 every step the machine is recorded from four fixed views; instance masks, part states, removal relations,
 question-answer pairs, 3D reconstructions, operator video and robot demonstrations are built on those records.
 
-- Website: <https://eol3d.github.io> (what the data is, an interactive teardown, results)
+- Website: <https://eol3d.github.io> (what the data is, an interactive 3D view of a disassembly sequence, results)
 - Guide: <https://eol3d.github.io/guide.html> (every folder and file, tasks and scoring)
 - Data: <https://huggingface.co/datasets/ChangChrisLiu/E3D-Desktop-Disassembly> (the repository still carries the
   dataset's earlier name, E3D-Desktop-Disassembly; it holds the same data)
@@ -30,15 +30,15 @@ question-answer pairs, 3D reconstructions, operator video and robot demonstratio
 ## The dataset in two pictures
 
 <p align="center">
-  <img src="media/capture.webp" alt="The capture rig with its devices marked: a 3D scanner looking straight down, two OAK-D cameras, a RealSense camera, two video cameras and the desktop on the bench. Beside it the four things done for every desktop: taken apart one step at a time, four views after every step, annotated backward, then questions, video and robot data." width="860">
+  <img src="media/capture.webp" alt="The capture rig with its devices marked: a 3D scanner looking straight down, two OAK-D cameras, a RealSense camera, two video cameras and the desktop on the bench. Beside it the four things done for every desktop: disassembled one step at a time, four views after every step, annotated backward, then questions, video and robot data." width="860">
 </p>
 
 <p align="center">
-  <img src="media/stages.webp" alt="The four stages the teardowns serve: perception, understanding, planning and execution. Shown is perception: four steps of one teardown with the masks of the parts, and one frame with the complete extent and the visible area of every part." width="860">
+  <img src="media/stages.webp" alt="The four stages the dataset serves: perception, understanding, planning and execution. Shown is perception: four steps of one disassembly sequence with the masks of the parts, and one frame with the complete extent and the visible area of every part." width="860">
 </p>
 
 Both are sections of the [website](https://eol3d.github.io), where the stages can be opened one by one and a
-teardown can be stepped through in 3D.
+disassembly sequence can be stepped through in 3D.
 
 ## What is here
 

@@ -1,4 +1,4 @@
-"""Shared dataclasses and enums of the Teardown Annotator (TDA), the annotation tool.
+"""Shared dataclasses and enums of the annotation tool (package tda).
 
 The annotation tool's modules exchange data through these types.
 Coordinates are always in the *original image* frame of the view; masks are
@@ -10,17 +10,17 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional
 
-#: The four views of the teardown **sequence**: one frame per logical step.
+#: The four views of the disassembly **sequence**: one frame per logical step.
 VIEWS = ("scan", "oak1", "oak2", "rs")
 
 # --------------------------------------------------------------------------- #
 # the components gallery
 # --------------------------------------------------------------------------- #
-#: After each teardown the operators laid every removed part out on the table
+#: After each disassembly the operators laid every removed part out on the table
 #: and photographed the layout several times (re-arranged between shots) with
 #: both OAK cameras and the RealSense -- and laid them out on the scanner's bed
 #: and scanned them, one to five times (``cmp_scan``, first, as the scanner is
-#: first among :data:`VIEWS`). Those photos are **not** steps of the teardown:
+#: first among :data:`VIEWS`). Those photos are **not** steps of the disassembly:
 #: each camera's shots are a view of their own, and a shot ``k = 1..N`` is an
 #: ordinary frame ``(desktop, k, view)``.
 COMPONENT_VIEWS = ("cmp_scan", "cmp_oak1", "cmp_oak2", "cmp_rs")
@@ -184,7 +184,7 @@ def machine_only(instances: dict) -> dict:
 # gallery-only parts
 # --------------------------------------------------------------------------- #
 #: ``attrs`` flag of a part added from a components-gallery shot: it lies on
-#: the table in the gallery, and the teardown sequence never asks for it.
+#: the table in the gallery, and the disassembly sequence never asks for it.
 GALLERY_ONLY_ATTR = "gallery_only"
 
 
@@ -199,7 +199,7 @@ def is_gallery_only(rec: Optional["InstanceRec"]) -> bool:
     (:func:`is_extra` is true, :func:`is_context` false) -- but they have no
     state, no event and no step. :func:`tda.core.states.initial_state` leaves
     them out of every snapshot the way it leaves an object outside the machine
-    out, so nothing that walks the teardown -- geometry, the cascade, the
+    out, so nothing that walks the disassembly -- geometry, the cascade, the
     validation -- ever sees one; :func:`tda.core.states.gallery_state`
     puts each on the table of every shot whatever its class.
     """
@@ -229,7 +229,7 @@ def is_in_gallery(rec: Optional["InstanceRec"]) -> bool:
 
 
 def teardown_only(instances: dict) -> dict:
-    """``instances`` as the teardown sequence knows them.
+    """``instances`` as the disassembly sequence knows them.
 
     :func:`machine_only` without the gallery-only parts: what the constraint
     graph, the implied-part rules and the sequence's exports read, so none of
@@ -263,7 +263,7 @@ def is_cage_latch(rec: Optional["InstanceRec"]) -> bool:
 # --------------------------------------------------------------------------- #
 # what a step type means
 # --------------------------------------------------------------------------- #
-#: Step types that describe no annotatable moment of the teardown.
+#: Step types that describe no annotatable moment of the disassembly.
 #:
 #: An ``ignore`` step -- a calibration shot, a re-take -- is never compiled into
 #: the truth table, never carries a review status of its own and is never
@@ -279,7 +279,7 @@ NO_CHANGE_STEP_TYPES = frozenset(
 
 
 def step_is_annotatable(step_type: Optional[str]) -> bool:
-    """Is there a moment of the teardown here to compile, confirm and export?
+    """Is there a moment of the disassembly here to compile, confirm and export?
 
     The single answer the annotation tool's truth table and its exports both
     read, so they cannot disagree. A step the table has no row for counts as

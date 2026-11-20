@@ -738,7 +738,7 @@ def propose_edges(instances: dict[str, InstanceRec], tax: Taxonomy,
     reading keyed on its class, role or kind (the CPU lever over the CPU, a
     power lead on the PSU, the cooler over the CPU, "this cover hides every
     motherboard screw"). The log never operated it, so such an edge is either
-    one the recorded teardown "violates" or a question about it nobody asked;
+    one the recorded disassembly "violates" or a question about it nobody asked;
     a human who wants one adds it by hand.
 
     **Everything on the motherboard comes off before the motherboard**: every
