@@ -5,7 +5,7 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=32G
 #SBATCH --output=l1_prepare.%j.log
-##SBATCH --account=TODO(hprc)
+##SBATCH --account=EDIT: your account
 # make_coco (train / val / test) -> evaluator self-test (must print SELFTEST PASSED) -> YOLO dataset. CPU only.
 # Amodal masks:  sbatch --export=ALL,MASKS=amodal slurm/00_prepare.sbatch
 source "${KIT:-$SLURM_SUBMIT_DIR}/slurm/env.sh"

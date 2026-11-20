@@ -1,6 +1,6 @@
 #!/bin/bash
 # Gold self-check of the pack on the cluster: no model, no GPU; every task must score 1.000.
-#   sbatch --export=ALL,PACK=$SCRATCH/vlmpack_2026-11-02 gold_check.sbatch
+#   sbatch --export=ALL,PACK=$DATA/vlm/vlmpack_2026-11-05 gold_check.sbatch
 #SBATCH --job-name=vlm_gold
 #SBATCH --time=00:30:00
 #SBATCH --ntasks=1
@@ -8,13 +8,13 @@
 #SBATCH --mem=8G
 #SBATCH --array=0-4
 #SBATCH --output=logs/%x_%A_%a.out
-# TODO(hprc): the cluster's CPU partition if the default is not it, e.g.
+# EDIT: your CPU partition if the default is not one, e.g.
 ##SBATCH --partition=cpu
 set -euo pipefail
 
-# TODO(hprc): module loads, then the pack's venv
+# EDIT: load Python the way your cluster provides it, then the environment, for example
 # module purge
-# module load GCCcore/13.3.0 Python/3.12.3
+# module load Python/3.12
 source "${VENV:-$SCRATCH/venvs/vlmpack}/bin/activate"
 
 # the pack's export units (manifest.json "units": the camera views with records, then multi;

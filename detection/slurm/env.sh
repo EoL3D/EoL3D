@@ -1,13 +1,14 @@
-# Sourced by every job in this folder. Edit the TODO(hprc) lines once per cluster account.
-# Submit the jobs from the kit folder (<download>/benchmarks/level1) so that $SLURM_SUBMIT_DIR is the kit.
+# Sourced by every job in this folder. Edit the EDIT: lines once for your cluster.
+# Submit the jobs from the kit folder (detection/ in this repository, or benchmarks/level1/ in the dataset)
+# so that $SLURM_SUBMIT_DIR is the kit.
 set -euo pipefail
 
-# TODO(hprc): load Python / CUDA the way your cluster provides them, for example
-#   module purge; module load GCCcore/13.2.0 Python/3.11.5; source "$L1/venv/bin/activate"
-#   or: module load Anaconda3; source activate "$L1/conda/e3d-l1"
+# EDIT: load Python / CUDA the way your cluster provides them, for example
+#   module purge; module load Python/3.11; source "$L1/venv/bin/activate"
+#   or: module load Anaconda3; source activate "$L1/conda/eol3d-det"
 
-export L1=${L1:-$SCRATCH/e3d}                 # TODO(hprc): your project space ($SCRATCH on Grace / FASTER / ACES)
-export DATA=${DATA:-$L1/hf}                   # the Hugging Face download: annotations/scanner, splits.json, benchmarks/level1
+export L1=${L1:-$SCRATCH/e3d}                 # EDIT: your project folder (a scratch or project file system)
+export DATA=${DATA:-$L1/hf}                   # the Hugging Face download: annotations/scanner, splits.json
 export KIT=${KIT:-${SLURM_SUBMIT_DIR:-$DATA/benchmarks/level1}}
 export WORK=${WORK:-$L1/level1}               # COCO files, YOLO dataset, runs
 export MASKS=${MASKS:-visible}                # visible | amodal

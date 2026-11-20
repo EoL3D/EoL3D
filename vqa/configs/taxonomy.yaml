@@ -1,10 +1,9 @@
-# TDA unified vocabulary -- encodes spec section 6 (统一词表).
+# The unified vocabulary of the annotation tool (TDA):
 #
-#   6.1  25 classes with their attributes (`loose_cable`, the 24th, since task U45;
-#        `screw_hole`, the 25th, since task W3e)
-#   6.2  per-class state sets, default state, and which states need a mask
-#   6.3  action verbs: what they apply to and their state effect
-#   6.5  tool vocabulary
+#   25 classes with their attributes (`loose_cable` and `screw_hole` appended last)
+#   per-class state sets, default state, and which states need a mask
+#   action verbs: what they apply to and their state effect
+#   tool vocabulary
 #
 # Mask policy (resolved by Taxonomy.needs_mask(cls, state, placement)):
 #   placement == "on_bench"   -> true for every class except `chassis`
@@ -17,7 +16,7 @@ version: 1
 # state it is in. `chassis` never goes on the bench, so it is excluded.
 on_bench_needs_geom: true
 
-# Classes an *implied* instance may be created for (tda.core.implied).
+# Classes an *implied* instance may be created for (by the annotation tool).
 #
 # Four teardowns (D49, D62, D63, D64) stop before the motherboard is lifted out:
 # the sheet unscrews it, unplugs it and then ends, so the log importer never
@@ -32,7 +31,7 @@ on_bench_needs_geom: true
 # list is deliberately short and lives in the vocabulary rather than in code.
 implied_when_referenced: [motherboard]
 
-# Annotation tier per view (spec 8.1). This is a statement about the *view* --
+# Annotation tier per view. This is a statement about the *view* --
 # how carefully that camera's frames are annotated at all -- and it travels with
 # every exported annotation and every VLM record as `tier`. It is NOT about
 # review: whether a human confirmed one particular frame is the separate
@@ -42,7 +41,7 @@ implied_when_referenced: [motherboard]
 #   silver  OAK2: model drafts corrected frame by frame, staging area as boxes
 #   bronze  RealSense: the coarsest tier (`too_small` is common)
 #
-# The components gallery (零件合照, spec 3.2b) takes the tier of the camera
+# The components gallery takes the tier of the camera
 # that shot it.
 view_tiers:
   scan: gold
@@ -55,7 +54,7 @@ view_tiers:
   cmp_rs: bronze
 
 classes:
-  # --- 结构 / structure ------------------------------------------------------
+  # --- structure ---------------------------------------------------------------
   chassis:
     group: structure
     attrs: {}
@@ -86,7 +85,7 @@ classes:
     default_state: installed
     needs_mask: {installed: true, displaced: true, removed: false}
 
-  # --- 主要部件 / major parts -------------------------------------------------
+  # --- major parts -------------------------------------------------------------
   motherboard:
     group: part
     attrs: {}
@@ -161,7 +160,7 @@ classes:
     default_state: installed
     needs_mask: {installed: true, displaced: true, removed: false}
 
-  # --- 紧固件 / fastener -----------------------------------------------------
+  # --- fastener ----------------------------------------------------------------
   screw:
     group: fastener
     attrs:
@@ -172,23 +171,23 @@ classes:
     default_state: fastened
     needs_mask: {fastened: true, loosened: true, removed: false}
 
-  # --- 锁扣 / latch ----------------------------------------------------------
+  # --- latch -------------------------------------------------------------------
   #
   # `host_class` (read by Taxonomy.host_class, filled in by tda.core.graph_infer)
   # says: every instance of this class is mounted on the desktop's one instance
   # of that class and leaves the chassis inside it. It fills `parent` and ticks
-  # `attached`, so the spec-3.3 cascade puts the latch in state `removed` the
+  # `attached`, so the attached cascade puts the latch in state `removed` the
   # moment its host goes and `gone_with_parent` stops asking for its mask.
   #
   # Only the two latches that are physically part of the motherboard carry one.
   # psu_latch, card_latch, drive_latch, cable_clip and cooler_latch are NOT
   # declared on purpose: they sit on the chassis, the cage or the cooler, or it
-  # genuinely depends on the machine -- so they stay a question for the human in
-  # stage S1 rather than a guess the vocabulary makes for all 66 desktops.
+  # genuinely depends on the machine -- so they stay a question for the annotator
+  # rather than a guess the vocabulary makes for all 66 desktops.
   #
   # Every latch-group class has a `removed` state that needs no mask, because
   # every one of them can leave the chassis: carried out on its host (a
-  # drive_latch whose S1 parent is the drive cage goes with the cage -- D13), or
+  # drive_latch whose parent is the drive cage goes with the cage -- D13), or
   # taken out by hand. The removable brackets and latches (psu_latch,
   # drive_latch, card_latch, cooler_latch) are in `remove.applies_to` -- D13's
   # PSU latch is physically taken out at step 33. ram_latch and
@@ -202,7 +201,7 @@ classes:
     states: [closed, open, removed]
     default_state: closed
     # `removed` here means "left the chassis on its host; never the effect of a
-    # verb" -- the spec-3.3 cascade writes it when the motherboard goes, and
+    # verb" -- the attached cascade writes it when the motherboard goes, and
     # `remove.applies_to` deliberately does not list this class, so no annotator
     # can reach it by picking a verb. Out of the chassis there is nothing of it
     # left to draw.
@@ -258,7 +257,7 @@ classes:
     # `remove.applies_to` does not list it
     needs_mask: {closed: true, open: true, removed: false}
 
-  # --- 接口 / interface ------------------------------------------------------
+  # --- interface ---------------------------------------------------------------
   connector:
     group: interface
     attrs:
@@ -267,17 +266,16 @@ classes:
       cable: []         # virtual cable node id
     states: [plugged, unplugged, removed]
     default_state: plugged
-    # `unplugged` is explicitly NOT tracked with geometry (spec 6.2).
+    # `unplugged` is explicitly NOT tracked with geometry.
     needs_mask: {plugged: true, unplugged: false, removed: false}
 
-  # A loose cable laid out on the table in the components gallery (task U45,
-  # spec 3.2b). Appended LAST so no COCO category id of the 23 classes above
-  # moves (tda.core.export.coco numbers them in this order; `other`, the 框外零件
-  # category, keeps id 24 and `loose_cable` takes 25). It is only ever made as
-  # a gallery-only part (instance attr `gallery_only: true`, 「＋ 这张里还有…」 on
-  # a shot): the sequence's cables stay the virtual `cable:<owner>` nodes below.
-  # Named apart from the virtual node `cable` on purpose (U45 round 2): every
-  # query that says "cable" keeps meaning the node, exactly as before.
+  # A loose cable laid out on the table in the components gallery. Appended LAST
+  # so no COCO category id of the 23 classes above moves (the COCO export numbers
+  # them in this order; `other`, the category of objects outside the machine,
+  # keeps id 24 and `loose_cable` takes 25). It is only ever made as a
+  # gallery-only part (instance attr `gallery_only: true`): the sequence's cables
+  # stay the virtual `cable:<owner>` nodes below. Named apart from the virtual
+  # node `cable` on purpose: every query that says "cable" means the node.
   loose_cable:
     group: interface
     attrs:
@@ -286,20 +284,19 @@ classes:
     default_state: installed
     needs_mask: {installed: true, removed: true}
 
-  # --- 结构 / structure, appended (task W3e) ---------------------------------
-  # 螺丝孔: where a removed screw was. Used ONLY for the fan screws of the seven
+  # --- structure, appended ------------------------------------------------------
+  # Where a removed screw was. Used ONLY for the fan screws of the seven
   # heatsink + fan desktops (D07 D08 D11 D14 D16 D18 D19), whose holes the
   # annotator drew under the screw's label on every frame after the screw came
-  # out (用户 2026-10-31：「螺丝孔也可以只保留像素，就是只是作为探测的时候的部分」);
-  # no other hole is ever annotated. A detection category (COCO), never a VLM
+  # out, as pixels for detection only; no other hole is ever annotated. A detection category (COCO), never a VLM
   # question target, never a node of a constraint edge, and no verb applies to
   # it. `of` is the screw's instance key; `parent` is the screw's parent (the
   # fan) with `attached` ticked, so the hole leaves the chassis inside the fan.
-  # `removed` is the spec-3.3 cascade's word for exactly that, never a verb's
+  # `removed` is the attached cascade's word for exactly that, never a verb's
   # (`remove.applies_to` does not list the class), like ram_latch's.
   # Appended LAST so no COCO category id moves: the sequence's 23 classes keep
   # 1..23, `other` 24, `loose_cable` 25, and `screw_hole` takes 26
-  # (tda.core.export.coco numbers the classes appended after `other` from 25).
+  # (the COCO export numbers the classes appended after `other` from 25).
   screw_hole:
     group: structure
     attrs:
@@ -310,8 +307,8 @@ classes:
 
 # Virtual (non-visual) nodes. They are not taxonomy classes -- they never carry
 # geometry -- but verbs apply to them and they have their own state machine.
-# (The class `loose_cable` above, task U45, is the gallery's drawn cable.)
-# `removed` (task U33): a loose cable taken out whole -- D36 step 2 "Remove 1
+# (The class `loose_cable` above is the gallery's drawn cable.)
+# `removed`: a loose cable taken out whole -- D36 step 2 "Remove 1
 # isolated cable from motherboard" -- is a cable event, not a part to draw.
 virtual_nodes:
   cable:
@@ -319,7 +316,7 @@ virtual_nodes:
     default_state: routed
     needs_mask: {routed: false, released: false, removed: false}
 
-# --- 6.3 动作动词 ------------------------------------------------------------
+# --- action verbs ------------------------------------------------------------
 # effect.to         : unconditional new value for effect.attr
 # effect.by_class   : new value keyed by the target class
 # effect.conditional: pick by the truthiness of attribute `if_attr`
@@ -352,7 +349,7 @@ verbs:
   remove:
     # ram_latch and cpu_socket_lever are moulded into the board and are never
     # listed; the four removable brackets/latches are. `cable` is the virtual
-    # node (task U33): a loose cable taken out whole, no geometry, ever.
+    # node: a loose cable taken out whole, no geometry, ever.
     applies_to: [drive_cage, cover, cooler_bracket, motherboard, cpu, cpu_cooler,
                  ram_module, psu, storage_drive, optical_drive, expansion_card,
                  case_fan, misc_part, screw, connector,
@@ -369,8 +366,8 @@ verbs:
     applies_to: [chassis]
     effect: null
 
-# --- 6.5 工具 ----------------------------------------------------------------
+# --- tools -------------------------------------------------------------------
 tools: [PH1, PH2, PH3, T15, T20, hand, none]
 
-# --- 6.4 方向（机箱坐标系）---------------------------------------------------
+# --- directions (chassis frame) ------------------------------------------------
 directions: ["+Z", "+X", "-X", "+Y", "-Y", "rotate", "none"]

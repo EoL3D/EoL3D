@@ -1,13 +1,14 @@
-"""Glue around ``vlm_run.py`` for a run directory (W4-B): subset, split, table.
+"""Glue around ``vlm_run.py`` for a run directory: subset, split, table.
 
 * ``subset --export <view.jsonl> --out <dir>/<name>.jsonl (--ids <file> | --records <jsonl>)``
   -- the records of an export restricted to some ids, **with the export's
   sidecars copied beside it** (``.images_manifest.jsonl``, ``.oracle.jsonl``,
   ``.summary.json``, and ``.masks.jsonl`` when the export has one) so
   ``vlm_to_chat.py --export`` and ``vlm_score.py --truth`` take the subset as
-  a truth file of its own. The pack's ``eval_v3/<unit>.jsonl`` and a pilot ids
-  file both go through here; a path under ``eval_v1/`` (the subset before the
-  2026-11-03 redesign) or ``eval_v2/`` (before the 2026-11-04 final round) is refused with a message naming ``eval_v3``.
+  a truth file of its own. The pack's ``eval_v3/<unit>.jsonl`` and an ids file
+  both go through here; a path under an older evaluation subset is refused with a
+  message naming ``eval_v3``. An ids file may hold the ids of several units (the
+  repeat subset): each unit keeps its own, and a unit with none of them stops.
 * ``blind --records <jsonl> --out <jsonl>`` -- the image-ablated variant of the
   records (``prompt.images = []``, ``label.reference = "blind"``), the same
   rows ``vlm_references.py`` writes as ``blind.jsonl``, for a run directory
@@ -38,7 +39,7 @@ from pathlib import Path
 from typing import Iterable, Iterator, Optional
 
 SIDECARS = ("images_manifest.jsonl", "oracle.jsonl", "summary.json")
-#: Copied when the export has one: the confirmed masks (W4-C's overlay variant).
+#: Copied when the export has one: the confirmed masks (the overlay variant).
 OPTIONAL_SIDECARS = ("masks.jsonl",)
 _REPEAT = re.compile(r"^(?P<stem>.+)\.r(?P<k>\d+)$")
 #: The mark wording and the bare mark tag (vlm_references.MARK_PHRASE / MARK_TAG).
@@ -66,16 +67,16 @@ OLD_EVAL_VERSIONS = ("eval_v1", "eval_v2")
 
 
 def refuse_old_eval(*paths) -> None:
-    """``SystemExit`` naming the current subset when a path goes through an old one
-    (the same rule as the pack's ``vlm_eval_set.refuse_old_eval``; no import, this
-    file runs without the pack's other tools)."""
+    """``SystemExit`` naming the current subset when a path goes through an older one
+    (the same rule as ``vlm_eval_set.refuse_old_eval``; no import, this file runs
+    without the other tools)."""
     for path in paths:
         if path is None:
             continue
         for part in Path(str(path)).parts:
             if any(part == v or part.startswith(v + ".") for v in OLD_EVAL_VERSIONS):
-                raise SystemExit(f"[vlm-collect] refused: {path} is under {part}, the subset "
-                                 f"before the final round of 2026-11-04; use "
+                raise SystemExit(f"[vlm-collect] refused: {path} is under {part}, an older "
+                                 f"evaluation subset; use "
                                  f"{EVAL_VERSION}/ (the same layout)")
 
 
@@ -105,7 +106,11 @@ def sidecar(path, suffix: str) -> Path:
 
 # --------------------------------------------------------------------------- #
 def subset(export, out, ids_file: Optional[str] = None, records: Optional[str] = None) -> int:
-    """Write the records of ``export`` whose id is in ``ids_file`` / ``records``, plus sidecars."""
+    """Write the records of ``export`` whose id is in ``ids_file`` / ``records``, plus sidecars.
+
+    ``records``: every record must be in ``export``. ``ids_file`` may list the ids of several
+    units (one repeat file for every unit): the ids of this unit are kept, and only an ids file
+    with none of them stops the run."""
     if bool(ids_file) == bool(records):
         raise SystemExit("subset: exactly one of --ids / --records")
     if ids_file:
@@ -115,9 +120,12 @@ def subset(export, out, ids_file: Optional[str] = None, records: Optional[str] =
         keep = {str(r["id"]) for r in read_jsonl(records)}
     rows = [r for r in read_jsonl(export) if str(r["id"]) in keep]
     missing = keep - {str(r["id"]) for r in rows}
-    if missing:
+    if missing and (records or not rows):
         raise SystemExit(f"subset: {len(missing)} ids not in {export} "
                          f"(first: {sorted(missing)[:3]})")
+    if missing:
+        print(f"[vlm-collect] subset: {len(rows)} of {len(keep)} ids are in {export}; "
+              f"the other {len(missing)} belong to other units", file=sys.stderr)
     out = Path(out)
     if out.resolve() == Path(export).resolve():
         raise SystemExit("subset: --out must differ from --export")

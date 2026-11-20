@@ -1,4 +1,4 @@
-"""Run a vision-language model over a chat JSONL and write its raw replies (W4-B).
+"""Run a vision-language model over a chat JSONL and write its raw replies.
 
 ``python vlm_run.py --backend openai|vllm|transformers|gold --chat <chat.jsonl>
 --out <pred.jsonl> [--model <id>] [--image-root <dir>] [--max-side N]
@@ -45,7 +45,7 @@ Exit codes: 0 all answered, 2 usage / input error, 3 some requests failed
 (their rows are written with ``meta.error`` so a re-run picks them up).
 
 Self-contained: no ``tda`` import; only the ``gold`` backend needs
-``vlm_io.py`` / ``vlm_check.py`` (from ``scripts/`` or the pack's ``tools/``).
+``vlm_io.py`` / ``vlm_check.py`` (from ``vqa/`` in this repository or the pack's ``tools/``).
 """
 from __future__ import annotations
 
@@ -60,11 +60,11 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable, Iterable, Iterator, Optional
+from typing import Any, Iterable, Iterator, Optional
 
 HERE = Path(__file__).resolve().parent
 #: Where ``vlm_io`` / ``vlm_check`` may live: beside this file, one directory up
-#: (``scripts/`` or the pack's ``tools/``), and the repo root for ``tda``.
+#: (``vqa/`` or the pack's ``tools/``, which also hold the vendored ``tda``), and two up.
 _SEARCH = [HERE, HERE.parent, HERE.parent.parent]
 
 BACKENDS = ("openai", "vllm", "transformers", "gold")
@@ -646,19 +646,13 @@ class TransformersBackend(Backend):
 
 
 def _import_tools():
-    """``(vlm_io, vlm_check)`` from the pack's ``tools/``, ``scripts/`` or ``tda``."""
+    """``(vlm_io, vlm_check)`` from ``vqa/`` (or the pack's ``tools/``) and its vendored ``tda``."""
     for p in _SEARCH:
         if str(p) not in sys.path:
             sys.path.insert(0, str(p))
     import vlm_io  # type: ignore[import-not-found]
+    from tda.core.export import vlm_check  # type: ignore[import-not-found]
 
-    try:
-        from tda.core.export import vlm_check  # type: ignore[import-not-found]
-    except ImportError:
-        try:
-            import vlm_check  # type: ignore[import-not-found,no-redef]
-        except ImportError:
-            from vlmtools import vlm_check  # type: ignore[import-not-found,no-redef]
     return vlm_io, vlm_check
 
 
@@ -955,7 +949,7 @@ def make_parser() -> argparse.ArgumentParser:
     v.add_argument("--device-map", default="auto")
     v.add_argument("--attn", default=None, help="attn_implementation (transformers)")
     g = ap.add_argument_group("gold")
-    g.add_argument("--truth", default=None, help="the export-vlm JSONL the chat was made from")
+    g.add_argument("--truth", default=None, help="the question-answer JSONL the chat was made from")
     return ap
 
 

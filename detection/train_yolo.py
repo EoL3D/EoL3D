@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Baseline (a): Ultralytics YOLO instance segmentation, trained on a coco_to_yolo.py dataset.
 
-    python train_yolo.py --data runs/yolo_visible/data.yaml --run runs/yolo11n_seg_visible \
+    python detection/train_yolo.py --data runs/yolo_visible/data.yaml --run runs/yolo11n_seg_visible \
         [--model yolo11n-seg.pt] [--imgsz 1280] [--epochs 100] [--batch 8] [--seed 0] [--device 0]
 
 Pretrained weights: `--model` is a local .pt file or an Ultralytics asset name (yolo11n-seg.pt, yolo11s-seg.pt,

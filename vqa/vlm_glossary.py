@@ -1,20 +1,18 @@
-"""The glossary a chat prompt ends with (spec 3.5): what each named class is, and what its states mean.
+"""The glossary a chat prompt ends with: what each named class is, and what its states mean.
 
 ``glossary_text(terms, state_terms)`` -- ``terms`` = the class ids the question or its options
 name (``prompt.terms``), ``state_terms`` = the classes whose state the question asks
 (``prompt.state_terms``) -- gives one line per class with its description and, for a state
 class, one plain line per state, written from what the photograph shows.
 
-Self-contained on purpose: the pack's ``tools/`` ship this file without the ``tda`` package and
-without ``configs/taxonomy.yaml``. So the three tables are literals:
+Self-contained on purpose: it needs neither the ``tda`` package nor ``configs/taxonomy.yaml``.
+So the three tables are literals:
 
-* :data:`CLASS_TEXT` -- the scanner pack's ``class_description`` per class, copied verbatim from
-  ``CLASS_EN`` in ``scripts/export_scanpack.py`` (a test keeps them equal);
+* :data:`CLASS_TEXT` -- the scanner annotations' ``class_description`` per class, verbatim;
 * :data:`MODEL_TEXT` -- the model-facing wording of the few of those lines that talk about the
   annotation's attributes (``attrs.kind`` ...), which mean nothing to a model;
 * :data:`STATE_MEANINGS` -- one line per state of every class with two or more tracked states in
-  ``configs/taxonomy.yaml`` (authored from it; a test keeps the state sets equal).
-  **A draft: the owner reviews it.**
+  ``configs/taxonomy.yaml`` (written from it, with the same state sets).
 """
 from __future__ import annotations
 
@@ -36,7 +34,7 @@ CLASS_NAME: dict[str, str] = {
     "loose_cable": "loose cable", "screw_hole": "screw hole", "other": "other",
 }
 
-#: The scanner pack's class descriptions, verbatim (``export_scanpack.CLASS_EN``).
+#: The scanner annotations' class descriptions, verbatim.
 CLASS_TEXT: dict[str, str] = {
     "chassis": "The computer case: the metal enclosure everything else sits in.",
     "drive_cage": "A cage or bracket holding storage or optical drives.",
@@ -84,16 +82,13 @@ MODEL_TEXT: dict[str, str] = {
     "screw_hole": "The empty hole where a removed CPU-fan screw was.",
 }
 
-#: One plain line per state, from what the photograph shows. DRAFT -- the owner reviews it.
-#: Authored from ``configs/taxonomy.yaml`` (every class with two or more states; ``chassis``
-#: has one and is left out).
+#: One plain line per state, from what the photograph shows. Written from
+#: ``configs/taxonomy.yaml`` (every class with two or more states; ``chassis`` has one and is
+#: left out).
 #:
-#: ``displaced`` (owner decision (a), 2026-11-04): every class says what it concretely means for
-#: that part. Four classes use it in the 2026-11-02 pack -- gold ``displaced`` in V2 / V14 of
-#: ``vlm_scan`` and the ``displace`` verb or a ``displaced`` state anywhere in ``vlm_multi``:
-#: ``drive_cage`` (V2 128, V14 6; multi 619, almost all the optical drive in its hinged
-#: bracket), ``psu`` (V2 102; multi 511), ``storage_drive`` (V2 5; multi 44) and ``cpu_cooler``
-#: (V2 2, V14 1, the M91P's fan; multi 34). No other class has it as a gold state.
+#: ``displaced``: every class says what it concretely means for that part. Four classes have it
+#: as a gold state in the question-answer data: ``drive_cage`` (almost always the optical drive
+#: in its hinged bracket), ``psu``, ``storage_drive`` and ``cpu_cooler``.
 STATE_MEANINGS: dict[str, dict[str, str]] = {
     "drive_cage": {
         "installed": "the cage sits in its place in the case",
@@ -232,8 +227,8 @@ STATE_MEANINGS: dict[str, dict[str, str]] = {
 
 
 #: The states of a question asked on presence alone (``answer_check.state_space ==
-#: "presence"``: a screw is asked present / removed, its tightness was never annotated --
-#: final review M3). Every other class keeps :data:`STATE_MEANINGS`.
+#: "presence"``: a screw is asked present / removed, its tightness was never annotated).
+#: Every other class keeps :data:`STATE_MEANINGS`.
 PRESENCE_MEANINGS: dict[str, dict[str, str]] = {
     "screw": {
         "present": "the screw is still in its hole (screwed in, or for a captive screw "
@@ -286,12 +281,12 @@ def glossary_text(terms: Optional[Iterable] = None, state_terms: Optional[Iterab
             line += " States: " + "; ".join(f"{s} = {m}" for s, m in meanings.items()) + "."
         lines.append(line)
     if states:
-        # V14 merged into V2 (owner 2026-11-04): a state question may be answered "cannot tell"
+        # a state question may be answered "cannot tell"
         lines.append(f"- {CANNOT_TELL}: {CANNOT_TELL_MEANING}")
     return "\n".join(lines)
 
 
-#: The answer a V2 state question has beside the class's states (V14 merged into V2).
+#: The answer a V2 state question has beside the class's states.
 CANNOT_TELL = "cannot_tell"
 CANNOT_TELL_MEANING = ("this image does not show the part well enough to tell its state "
                        "(it is covered, too small, or outside the picture).")

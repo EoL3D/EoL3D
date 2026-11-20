@@ -2,12 +2,12 @@
 
 ::
 
-    # 1. the masks, once per export, from the scanner pack's COCO (confirmed rows)
-    python scripts/vlm_overlay.py masks --export <vlm_scan.jsonl> \\
-        --coco-root exports/scanpack_<date> [--out <vlm_scan.masks.jsonl>]
+    # 1. the masks, once per export, from the scanner annotations' COCO (confirmed rows)
+    python vqa/vlm_overlay.py masks --export <vlm_scan.jsonl> \\
+        --coco-root $DATA/annotations/scanner [--out <vlm_scan.masks.jsonl>]
 
     # 2. the variant: every eligible record with its frames painted
-    python scripts/vlm_overlay.py render --export <truth.jsonl> [--records <subset.jsonl>] \\
+    python vqa/vlm_overlay.py render --export <truth.jsonl> [--records <subset.jsonl>] \\
         --image-root <images> --assets <dir> --out <mask_overlay.jsonl> \\
         [--masks <masks.jsonl>] [--force]
 
@@ -24,8 +24,8 @@ does not know what to do with them.
   not V8 (the box *is* the answer: a painted box would be the answer). V15's two
   pictures are both painted when both frames are confirmed (the scanner is the
   only confirmed view on most desktops, so almost no V15 pair qualifies).
-* A ``multi`` record (``label.view == "multi"``: one moment from every camera,
-  the redesign of 2026-11-03; a record whose parts are outlined in red -- V4, V6
+* A ``multi`` record (``label.view == "multi"``: one moment from every camera;
+  a record whose parts are outlined in red -- V4, V6
   multiple choice, V7, V16 -- shows the scanner image alone) has **only its scanner
   frames painted** -- image 0,
   and for V3 / V12 also the scanner frame of the second moment (:func:`painted_images`);
@@ -34,10 +34,10 @@ does not know what to do with them.
   ``--assets`` (``../images/...`` in the pack), with ``"painted": false``.
 * The masks are the rows the export itself read: the instances the oracle's
   frame table lists with a ``visibility`` (confirmed rows, no screw hole, no
-  框外零件). Their visible RLE comes from a ``<export>.masks.jsonl`` sidecar
-  that this script builds from the scanner pack's COCO
-  (``scripts/export_scanpack.py``: ``D<nn>/annotations.json``, confirmed rows
-  only, full-frame coordinates). A row's visibility in the COCO must agree
+  object outside the machine). Their visible RLE comes from a ``<export>.masks.jsonl``
+  sidecar that this script builds from the scanner annotations' COCO
+  (``annotations/scanner/D<nn>/annotations.json``, confirmed rows only,
+  full-frame coordinates). A row's visibility in the COCO must agree
   with the oracle's or the build stops: a scanner pack from another snapshot
   paints masks the questions were not asked about.
 * The overlay of a frame is written once, to ``--assets/<view>/D<nn>/s<nn>.png``
@@ -49,7 +49,7 @@ does not know what to do with them.
   the replies.
 
 No ``tda`` import: ``json``, PyYAML (the class order) and Pillow (the painting),
-which is what the evaluation pack's ``tools/`` has. The COCO RLE is decoded
+which is all ``vqa/requirements.txt`` installs. The COCO RLE is decoded
 here in pure Python (column-major, the LEB128-like string of pycocotools).
 """
 from __future__ import annotations
@@ -147,8 +147,8 @@ def taxonomy_classes(path: Optional[str] = None) -> list[str]:
     import yaml
 
     candidates = [Path(path)] if path else [
-        Path(__file__).resolve().parent / "configs" / "taxonomy.yaml",        # the pack
-        Path(__file__).resolve().parents[1] / "configs" / "taxonomy.yaml",    # the repo
+        Path(__file__).resolve().parent / "configs" / "taxonomy.yaml",        # beside this file
+        Path(__file__).resolve().parents[1] / "configs" / "taxonomy.yaml",    # one level up
     ]
     for cand in candidates:
         if cand.is_file():
@@ -320,13 +320,6 @@ def load_masks(path) -> dict[str, dict]:
     if not path.exists():
         return {}
     return {row["image"]: row for row in read_jsonl(path) if row.get("type") == "frame"}
-
-
-def cut_masks(src, dst, image_ids: set[str]) -> int:
-    """The sidecar restricted to ``image_ids`` (the header kept)."""
-    rows = [row for row in read_jsonl(src)
-            if row.get("type") == "header" or row.get("image") in image_ids]
-    return write_jsonl(dst, rows)
 
 
 # --------------------------------------------------------------------------- #
@@ -558,7 +551,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     m = sub.add_parser("masks", help="the masks sidecar of an export from a scanner pack's COCO")
-    m.add_argument("--export", required=True, help="the export-vlm JSONL (manifest + oracle beside it)")
+    m.add_argument("--export", required=True, help="the question-answer JSONL (manifest + oracle beside it)")
     m.add_argument("--coco-root", required=True, help="directory with D<nn>/annotations.json")
     m.add_argument("--out", default=None, help=f"default <export>.{MASKS_SUFFIX}")
     m.add_argument("--taxonomy", default=None)

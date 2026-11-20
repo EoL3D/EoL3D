@@ -1,20 +1,20 @@
-"""State machine and geometry policy -- steps 1-2 of the compiler (spec 3.3).
+"""State machine and geometry policy.
 
 The whole module is pure: it turns the recorded action list into an explicit
 event log, folds that log into a per-step snapshot, and answers which instances
 need geometry at a step.
 
 * :func:`initial_state`      -- every instance at its class default, in the chassis.
-* :func:`events_from_actions`-- actions (spec 6.3) -> :class:`~tda.core.model.StateEvent` log.
+* :func:`events_from_actions`-- actions -> :class:`~tda.core.model.StateEvent` log.
 * :func:`state_at`           -- initial state + every event with ``step <= k``.
 * :func:`needs_geom`         -- which instances need a mask or a bench box at a step.
 * :func:`diff_states`        -- what changed between two snapshots.
-* :func:`validate_events`    -- the legal-transition checks of spec 6.2.
+* :func:`validate_events`    -- the legal-transition checks.
 
 Conventions
 -----------
 Every instance starts ``in_chassis`` (the chassis itself included). An action
-whose ``result`` is not ``"success"`` produces no events at all (spec 6.3), and
+whose ``result`` is not ``"success"`` produces no events at all, and
 an action whose verb does not apply to the target class -- or whose effect is
 already the current value -- produces no event either.
 
@@ -22,7 +22,7 @@ Whenever an instance reaches ``removed``, it also leaves the chassis
 (``placement: in_chassis -> on_bench``) and drags its attached children with it.
 A ``connector`` is the one exception: removing it means the cable was taken out
 as a whole, which is a state change only, because an unplugged/removed
-connector carries no geometry of its own (spec 6.2). That cascade is enforced
+connector carries no geometry of its own. That cascade is enforced
 twice over: :func:`events_from_actions` materialises it as explicit events, and
 :func:`state_at` closes over it again, so a hand-entered (``auto=False``) parent
 removal never leaves an attached child behind asking for a mask. The child is
@@ -34,14 +34,14 @@ absent from ``instances``). They have their own small state machine and are
 carried in a :data:`FrameState` once an event mentions them, but they never
 carry geometry, because :func:`needs_geom` only answers for real instances.
 
-**A part this machine does not have** (「这台没有这个零件」, task U34): the
-sheet can log a part the machine never had -- D34 has no optical drive, yet
+**A part this machine does not have**: the log can name a part the machine
+never had -- D34 has no optical drive, yet
 step 37 "Try to remove the optical drive" made ``optical_drive.01``, which then
 stood installed from frame 1. The annotator says so with a hand-written
-``removed`` at :data:`INITIAL_STEP` (:mod:`tda.core.absent`), and from then on
+``removed`` at :data:`INITIAL_STEP`, and from then on
 the part is :func:`absent <absent_keys>`: it starts ``removed`` and
 ``elsewhere`` (:func:`initial_state`), so it never needs geometry, never joins
-the components gallery and takes nobody out with it; the sheet's own actions
+the components gallery and takes nobody out with it; the log's own actions
 on it derive nothing (:func:`events_from_actions`), and any later event about
 it -- a stale derived one, a hand-written one -- is a no-op in the fold
 (:func:`state_at`) and in the validation (:func:`event_problems`), never a
@@ -98,26 +98,25 @@ ATTR_PLACEMENT = "placement"
 REMOVED = "removed"
 #: The logical step a hand-written *initial* state event is recorded at: before
 #: step 1, so it is folded into every snapshot and is never "the change" of any
-#: frame (task U5b -- an instance added in S1 whose picture shows it ``open``).
+#: frame (an instance added by hand whose picture shows it ``open``).
 INITIAL_STEP = 0
 CABLE_PREFIX = "cable:"
 CABLE_CLASS = "cable"
 CONNECTOR_CLASS = "connector"
 IN_CHASSIS = Placement.IN_CHASSIS.value
 ON_BENCH = Placement.ON_BENCH.value
-#: Where a part this machine does not have is (task U34): out of every view --
+#: Where a part this machine does not have is: out of every view --
 #: not in the chassis, and not on the bench either, where a view with a bench
 #: ROI would ask for its box.
 ABSENT_PLACEMENT = Placement.ELSEWHERE.value
 _PLACEMENTS = frozenset(p.value for p in Placement)
 _SUCCESS = "success"
 #: ``StateEvent.evidence_view`` of the one derived event no action stands
-#: behind: a drive cage's own latch (:func:`tda.core.model.is_cage_latch`, task
-#: U20) opens on the frame before its cage comes out (:func:`cage_latch_opens`).
-#: It is a default, not a record of what was done, so it gives way to a manual
-#: state: :func:`event_problems` does not hold it against a latch the annotator
-#: already said was open (``T`` / ``Ctrl+T`` earlier), and a ``Ctrl+T`` span may
-#: run across it (:mod:`tda.core.state_assert`).
+#: behind: a drive cage's own latch (:func:`tda.core.model.is_cage_latch`) opens
+#: on the frame before its cage comes out (:func:`cage_latch_opens`). It is a
+#: default, not a record of what was done, so it gives way to a manual state:
+#: :func:`event_problems` does not hold it against a latch the annotator already
+#: said was open earlier.
 CAGE_LATCH_EVIDENCE = "rule:drive_cage_latch"
 #: The verb whose effect that event has.
 _OPEN = "open"
@@ -159,10 +158,10 @@ class InstState:
     state: str
     placement: str
     left_with: Optional[str] = field(default=None, compare=False)
-    #: A part of the components gallery (task U10, :func:`gallery_state`): it
+    #: A part of the components gallery (:func:`gallery_state`): it
     #: is drawn in a layout photo whatever its state and placement say.
     gallery: bool = field(default=False, compare=False)
-    #: A part this machine does not have (task U34, :func:`absent_keys`): it
+    #: A part this machine does not have (:func:`absent_keys`): it
     #: is ``removed`` / ``elsewhere`` from before step 1 and nothing moves it.
     absent: bool = field(default=False, compare=False)
 
@@ -194,14 +193,13 @@ def initial_state(
     ``initial`` overrides the default of the instances it names -- the states
     :func:`initial_overrides` reads off the hand-written step-0 events.
 
-    A 框外零件 (:func:`tda.core.model.is_context`, task U18) has no state at
-    all: it is not part of the machine, so no snapshot carries it -- and with
-    that no geometry policy, task card, cascade or validation ever sees it.
+    An object outside the machine (:func:`tda.core.model.is_context`) has no state
+    at all: it is not part of the machine, so no snapshot carries it -- and with
+    that no geometry policy, cascade or validation ever sees it.
 
-    An override of ``removed`` is a part this machine does not have (task
-    U34): it starts :data:`ABSENT_PLACEMENT` and marked ``absent``.
+    An override of ``removed`` is a part this machine does not have: it starts :data:`ABSENT_PLACEMENT` and marked ``absent``.
 
-    A gallery-only part (:func:`tda.core.model.is_gallery_only`, task U45) is
+    A gallery-only part (:func:`tda.core.model.is_gallery_only`) is
     left out the same way: no step ever touched it, so the teardown never
     asks for it; :func:`gallery_state` puts it on the table.
     """
@@ -221,7 +219,7 @@ def initial_state(
 def initial_overrides(events: Iterable[StateEvent]) -> dict[str, str]:
     """``key -> state`` a hand-written event sets before step 1.
 
-    An instance an annotator added in S1 (:mod:`tda.core.extra`) has no action,
+    An instance an annotator added by hand has no action,
     so the only way it can start anywhere but its class default -- a RAM clip
     the picture shows open -- is a manual ``state`` event at
     :data:`INITIAL_STEP`. :func:`state_at` folds that event like any other;
@@ -238,11 +236,11 @@ def initial_overrides(events: Iterable[StateEvent]) -> dict[str, str]:
 
 
 def absent_keys(events: Iterable[StateEvent]) -> set[str]:
-    """The parts this machine does not have: initial state ``removed`` (task U34).
+    """The parts this machine does not have: initial state ``removed``.
 
     A hand-written ``removed`` before step 1 can mean nothing else -- an added
-    part never starts there (:func:`tda.core.extra.state_choices`) -- so it is
-    the whole record of 「这台没有这个零件」 (:mod:`tda.core.absent`). The
+    part never starts there -- so it is the whole record of "this machine does not
+    have this part". The
     answer is :func:`initial_overrides`'s (the last initial state wins), read
     in one pass without sorting: :func:`state_at` asks it on every call.
     """
@@ -272,7 +270,7 @@ def _cascades_on_removal(rec: InstanceRec) -> bool:
 
     Shared by :func:`events_from_actions` and :func:`state_at` so the event log
     and the closure over it can never disagree. A ``connector`` does not
-    cascade: removing one means the cable went out as a whole (spec 6.3).
+    cascade: removing one means the cable went out as a whole.
     """
     return rec.cls != CONNECTOR_CLASS
 
@@ -312,9 +310,9 @@ def cage_latch_opens(
 ) -> list[tuple[int, str]]:
     """``(step, latch)`` of every drive cage's own latch that opens by default.
 
-    A cage's own latch (:func:`tda.core.model.is_cage_latch`, task U20) is in no
+    A cage's own latch (:func:`tda.core.model.is_cage_latch`) is in no
     log, so nothing says when it was opened -- only that it must have been
-    before the cage came out. The ruling: it is ``closed`` from the start and
+    before the cage came out. The rule: it is ``closed`` from the start and
     ``open`` on the frame before its cage's removal step ``c``, i.e. at
     ``c - 1``, and it leaves with the cage at ``c`` by the ordinary cascade. A
     cage the log never removes (or only displaces) keeps its latch closed, and
@@ -351,15 +349,15 @@ def events_from_actions(
     its board would be recorded as ``closed -> removed``.
 
     One derived event has no action behind it: a drive cage's own latch opens
-    at the step before its cage comes out (:func:`cage_latch_opens`, task U20),
+    at the step before its cage comes out (:func:`cage_latch_opens`),
     after the actions of that step, marked :data:`CAGE_LATCH_EVIDENCE`. Nothing
     is emitted when the latch is already open or gone by then.
 
     A part ``initial`` starts ``removed`` is one this machine does not have
-    (task U34, :func:`absent_keys`): the sheet's actions on it -- a failed
+    (:func:`absent_keys`): the log's actions on it -- a failed
     remove, a displace, any verb -- derive **nothing**, not even a cage
     latch's default, and a parent leaving takes nothing out through it (its
-    own attached children stay as the sheet says).
+    own attached children stay as the log says).
     """
     actions = list(actions)
     frame = initial_state(instances, tax, initial)
@@ -411,8 +409,8 @@ def events_from_actions(
             emit(action, target, ATTR_PLACEMENT, ON_BENCH)
         for child in children.get(target, ()):
             if child in seen or child in absent or child not in frame:
-                # a part the machine does not have is not taken out (U34), and a
-                # part in no snapshot -- a 框外零件, a gallery-only part (U45) --
+                # a part the machine does not have is not taken out, and a part in
+                # no snapshot -- an object outside the machine, a gallery-only part --
                 # has no state to take out, whatever its stored `parent` says
                 continue
             seen.add(child)
@@ -450,7 +448,7 @@ def events_from_actions(
 
         rec = instances[action.target]
         if action.target not in frame:
-            continue        # a 框外零件 (task U18): it has no state to change
+            continue        # an object outside the machine: it has no state to change
         effect = tax.apply_verb(rec.cls, rec.attrs, action.verb)
         if effect is None:
             continue
@@ -468,7 +466,7 @@ def _close_attached_cascade(
     frame: FrameState,
     removed_at: Optional[dict[str, int]] = None,
 ) -> None:
-    """Force the spec-3.3 cascade on ``frame`` in place, idempotently.
+    """Force the attached cascade on ``frame`` in place, idempotently.
 
     Every ``attached`` child of an instance already in state ``removed`` is
     removed as well, transitively; a child still ``in_chassis`` moves to the
@@ -509,7 +507,7 @@ def _close_attached_cascade(
             seen.add(child)
             inst = frame.get(child)
             if inst is None or inst.absent or not claims(parent, child):
-                continue      # (U34: a part the machine does not have is in nothing)
+                continue      # (a part the machine does not have is in nothing)
             inst.state = REMOVED
             if inst.placement == IN_CHASSIS:
                 inst.placement = ON_BENCH
@@ -520,7 +518,7 @@ def _close_attached_cascade(
         rec = instances.get(key)
         inst = frame.get(key)
         if rec is None or inst is None or inst.state != REMOVED or inst.absent:
-            continue      # absent (U34): it never left, so it takes nobody out
+            continue      # absent: it never left, so it takes nobody out
         if _cascades_on_removal(rec):
             walk(key, {key})
 
@@ -535,7 +533,7 @@ def state_at(
     """The state of every instance at logical step ``step``.
 
     Initial state, plus every event with ``event.step <= step``, plus the
-    attached-child closure of spec 3.3 step 1. :func:`events_from_actions`
+    attached-child closure. :func:`events_from_actions`
     already emits that cascade as explicit events, so the closure is a no-op on
     a compiled log; it is what makes a hand-entered (``auto=False``) parent
     removal drag its attached children along too.
@@ -550,12 +548,12 @@ def state_at(
     it later.
 
     ``initial`` is :func:`initial_overrides` for a caller whose ``events`` are
-    the *derived* log alone (the spec 7.4 replay): the hand-written step-0
+    the *derived* log alone (the constraint replay): the hand-written step-0
     events that carry an added part's initial state are not in it, so the
     snapshot has to start from them. A full log that contains them folds them
     either way.
 
-    A part this machine does not have (task U34, :func:`absent_keys` of the
+    A part this machine does not have (:func:`absent_keys` of the
     log, or an ``initial`` of ``removed``) is ``removed`` / ``elsewhere`` and
     ``absent`` at every step, and **every** event about it is a no-op: a
     stale derived one (a cached log from before it was said) or a hand-written
@@ -563,7 +561,7 @@ def state_at(
     """
     frame = initial_state(instances, tax, initial)
     ordered = sorted(events, key=lambda e: e.step)  # stable: keeps intra-step order
-    # the initial events sort first: only they can say a part is absent (U34)
+    # the initial events sort first: only they can say a part is absent
     head = 0
     while head < len(ordered) and ordered[head].step <= INITIAL_STEP:
         head += 1
@@ -580,7 +578,7 @@ def state_at(
         if event.step > step:
             break
         if event.target in gone:
-            continue        # U34: nothing happens to a part the machine does not have
+            continue        # nothing happens to a part the machine does not have
         inst = frame.get(event.target)
         if inst is None:
             cls = _virtual_class(event.target)
@@ -606,8 +604,8 @@ def gone_with_parent(fs: FrameState, key: str) -> bool:
 
     A captive cooler screw is ``attached`` to the cooler: once the cooler is
     out, the screw is *in* it, not lying beside it, so it is neither visible in
-    the chassis nor a separate thing in the staging area (user decision C7,
-    "子零件随父零件一起消失").
+    the chassis nor a separate thing in the staging area (a child part disappears
+    together with its parent).
 
     The answer is read off the snapshot rather than recomputed: only
     :func:`_close_attached_cascade` ever sets ``left_with``, and it does so
@@ -632,22 +630,20 @@ def needs_geom(
 ) -> dict[str, str]:
     """Which instances need their own geometry in this frame state.
 
-    **The one answer to "what has to be drawn here".** The truth table, the
-    ``missing_shape`` queue, the task card, the default keyframe anchor and the
-    canvas' "affects N frames" strip all ask this question, and they each used
-    to compute their own version of it -- which is how a frame could be reported
-    complete by one of them and missing a shape by another.
+    **The one answer to "what has to be drawn here".** Every part of the
+    annotation tool that asks this question asks it here, so a frame cannot be
+    complete by one answer and missing a shape by another.
 
     ``"mask"`` for an instance still in the chassis whose state is tracked by
-    the per-class table of spec 6.2, ``"box"`` for one lying in the bench area
+    the per-class table, ``"box"`` for one lying in the bench area
     (the chassis excepted -- it never goes on the bench). Everything else is
     omitted: an unplugged connector, anything ``elsewhere`` or in some other
     placement, any key that is not a real instance (a ``cable:*`` node), and --
     see :func:`gone_with_parent` -- an attached child that went out inside its
     parent, which the annotator must not be asked to draw a second time.
 
-    ``bench_roi`` is the staging area **this view** can see at this frame (spec
-    3.3 step 2 / 4.2 item 1, 若该视角有堆放区 ROI). ``None`` means the view has
+    ``bench_roi`` is the staging area **this view** can see at this frame (if the
+    view has a staging-area ROI). ``None`` means the view has
     none, so a part lying on the bench is not in its picture at all and is not
     its work; a rectangle means it is. Leaving the argument out asks the pure
     policy, with no view in mind, which is what a caller that has not resolved a
@@ -664,9 +660,9 @@ def needs_geom(
         rec = instances.get(key)
         if (rec is None or is_provisional(key) or inst.absent
                 or gone_with_parent(fs, key)):
-            continue      # (inst.absent: a part the machine does not have, U34)
+            continue      # (inst.absent: a part the machine does not have)
         if inst.gallery:
-            # a part laid out for the components gallery (task U10) is a mask
+            # a part laid out for the components gallery is a mask
             # wherever it is, and the snapshot only marks the ones to draw
             geom[key] = "mask"
             continue
@@ -684,7 +680,7 @@ def needs_geom(
 
 
 # --------------------------------------------------------------------------- #
-# the components gallery (task U10, spec 3.2b)
+# the components gallery
 # --------------------------------------------------------------------------- #
 #: A step after every step: :func:`state_at` folds the whole log up to it,
 #: which is the state at the end of the teardown.
@@ -711,12 +707,12 @@ def is_gallery_part(instances: dict[str, InstanceRec], final: FrameState, key: s
     except the classes in ``excluded`` (:data:`tda.core.model.GALLERY_EXCLUDED_CLASSES`),
     which are not identifiable in a layout. A Label Studio draft never is.
 
-    A gallery-only part (task U45) always is, whatever its class and whatever
+    A gallery-only part always is, whatever its class and whatever
     ``final`` says: it is in no snapshot of the teardown (it has no events),
     and the annotator added it because it lies on the table.
 
-    A sequence part of an excluded class with ``attrs.in_gallery`` (task W3k,
-    :func:`tda.core.model.is_in_gallery`) is judged like any other part: the
+    A sequence part of an excluded class with ``attrs.in_gallery``
+    (:func:`tda.core.model.is_in_gallery`) is judged like any other part: the
     annotator says this one screw can be told apart in the layout, so the
     gallery asks for it when it was taken out on its own.
     """
@@ -729,7 +725,7 @@ def is_gallery_part(instances: dict[str, InstanceRec], final: FrameState, key: s
     if rec.cls in set(excluded) and not is_in_gallery(rec):
         return False      # a plug, a cable, a screw: not told apart in a layout
     if inst.state != REMOVED or inst.absent:
-        return False      # absent (U34): it was never taken out, it was never there
+        return False      # absent: it was never taken out, it was never there
     return not gone_with_parent(final, key)
 
 
@@ -744,9 +740,9 @@ def gallery_state(instances: dict[str, InstanceRec], events: list[StateEvent],
     instance -- what stayed in the chassis, the excluded classes, the children
     that went out inside a parent -- is ``elsewhere``, out of the picture.
 
-    The gallery-only parts (task U45), which no snapshot of the teardown
+    The gallery-only parts, which no snapshot of the teardown
     carries, join them on the table: ``removed`` like every part there, any
-    class -- a ``loose_cable``, a ``screw`` the sheet never counted.
+    class -- a ``loose_cable``, a ``screw`` the log never counted.
     """
     excluded = frozenset(excluded)
     final = state_at(instances, events, AFTER_LAST_STEP, tax)
@@ -780,7 +776,7 @@ def diff_states(a: FrameState, b: FrameState) -> list[tuple[str, str, str, str]]
 
 
 # --------------------------------------------------------------------------- #
-# validation (spec 6.2 legal transitions)
+# validation (legal transitions)
 # --------------------------------------------------------------------------- #
 #: Codes of :class:`EventProblem`, one per rule of :func:`validate_events`.
 LEAVES_REMOVED = "leaves_removed"
@@ -794,9 +790,8 @@ class EventProblem:
 
     ``held`` is the value of ``event.attr`` the replay held when the event
     was applied; ``code`` is :data:`LEAVES_REMOVED`, :data:`OLD_MISMATCH` or
-    :data:`UNKNOWN_VALUE`. A caller that has to *explain* a problem -- the
-    state assertion of task U8, in the annotator's words -- reads these
-    instead of parsing the English.
+    :data:`UNKNOWN_VALUE`. A caller that has to *explain* a problem in the
+    annotator's words reads these instead of parsing the English.
     """
 
     event: StateEvent
@@ -819,9 +814,9 @@ def event_problems(
     for event in sorted(events, key=lambda e: e.step):  # stable: keeps intra-step order
         rec = instances.get(event.target)
         if rec is not None and (is_context(rec) or is_gallery_only(rec)):
-            continue        # a 框外零件 (U18) or a gallery-only part (U45): no state
+            continue        # an object outside the machine or a gallery-only part: no state
         if event.target in gone:
-            continue        # absent (U34): whatever is said about it is a no-op
+            continue        # absent: whatever is said about it is a no-op
         if rec is not None:
             cls = rec.cls
         else:
@@ -843,11 +838,11 @@ def event_problems(
                             f"{REMOVED!r} is final, an instance cannot leave it"))
         # A removal is legal from any state but ``removed`` itself: the clip a
         # board takes out with it at 42 was recorded leaving ``open`` and is
-        # ``closed`` once the annotator says so at 41 (task U8). Its ``old`` is
+        # ``closed`` once the annotator says so at 41. Its ``old`` is
         # the log's account of the state, not a precondition of the removal.
         into_removed = (event.attr == ATTR_STATE and event.new == REMOVED
                         and held != REMOVED)
-        # The cage latch's default "open here" (task U20) is no action: when the
+        # The cage latch's default "open here" is no action: when the
         # annotator already said it was open earlier, it simply holds already.
         default_held = is_cage_latch_event(event) and held == event.new
         if event.old != held and not into_removed and not default_held:
@@ -892,7 +887,7 @@ def validate_events(
     so later events are checked against the recorded trajectory. Targets that
     are neither instances nor virtual nodes are ignored, as are attributes other
     than ``state`` and ``placement`` -- and so is every event about a part this
-    machine does not have (task U34, :func:`absent_keys`): ``removed ->
+    machine does not have (:func:`absent_keys`): ``removed ->
     removed`` or ``removed -> displaced`` after it is a no-op, not a warning.
     :func:`event_problems` is the same check as records.
     """

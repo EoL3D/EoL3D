@@ -1,26 +1,27 @@
-"""The constraint graph: legal actions, sequence validation, cycles (spec 7).
+"""The constraint graph: legal actions, sequence validation, cycles.
 
-Each desktop carries a set of hard-constraint edges (:class:`Edge`, spec 7.2)
+Each desktop carries a set of hard-constraint edges (:class:`Edge`)
 saying which node must change state before another may be acted on. From that
 graph plus a :data:`~tda.core.states.FrameState` this module derives everything
-the dataset needs and the spec deliberately does *not* store (spec 7.1):
+the dataset needs and does *not* store:
 
 * :func:`applicable_preconditions` -- which edges gate one ``(verb, target)``;
 * :func:`unmet`                    -- which of them are not satisfied yet;
 * :func:`legal_actions`            -- "what can be removed now" (V-task truth);
-* :func:`validate_sequence`        -- the spec 7.4 replay check over a real log;
-* :func:`find_deadlocks`           -- the spec 7.4 acyclicity check, as a loop
+* :func:`validate_sequence`        -- the replay check over a real log;
+* :func:`find_deadlocks`           -- the acyclicity check, as a loop
   of *actions* (it lives with the planner, which decides the same question);
 * :func:`remaining_plan`           -- "what next", as a shortest legal sequence;
 * :func:`graph_version`            -- which graph an export shipped.
 
-The graph stack is four modules, bottom up: :mod:`tda.core.graph_rules` (the
-vocabulary, the spec 7.2 semantics and the spec 7.3 derivation rules),
-:mod:`tda.core.graph_plan` (the planner), :mod:`tda.core.graph_templates` (the
-family templates) and this one. Everything a caller needs is re-exported here,
+The graph stack is three modules, bottom up: :mod:`tda.core.graph_rules` (the
+vocabulary, what each edge type means and the derivation rules),
+:mod:`tda.core.graph_plan` (the planner) and this one. Everything a caller needs is re-exported here,
 so ``from tda.core.graph import ...`` is the only import needed.
 
-Everything is pure except :func:`edges_to_db` / :func:`edges_from_db`.
+Everything is pure except :func:`edges_to_db` / :func:`edges_from_db` /
+:func:`graph_version`, which take the annotation tool's database and are not used
+by the question-answering tools.
 """
 from __future__ import annotations
 
@@ -65,7 +66,6 @@ from tda.core.graph_rules import (
     unresolved_relations,
     verb_applies,
 )
-from tda.core.graph_templates import apply_template, save_template
 from tda.core.model import ActionRec, InstanceRec, StateEvent
 from tda.core.states import FrameState, events_from_actions, state_at
 from tda.core.taxonomy import Taxonomy
@@ -82,7 +82,6 @@ __all__ = [
     "HARD_TYPES",
     "MOUNTED_MODE",
     "REQUIRED_STATES",
-    "apply_template",
     "applicable_preconditions",
     "cable_owner",
     "connector_owner",
@@ -105,7 +104,6 @@ __all__ = [
     "propose_edges",
     "remaining_plan",
     "required_states",
-    "save_template",
     "unmet",
     "unresolved_boards",
     "unresolved_coolers",
@@ -142,7 +140,7 @@ def applicable_preconditions(edges: list[Edge], action: ActionLike) -> list[Edge
     taken away but not swung aside. A verb nothing can block (only ``reorient``
     today) has no preconditions at all.
 
-    A ``blocked_by`` edge gates by its ``mode`` (spec 7.1): a cable under
+    A ``blocked_by`` edge gates by its ``mode``: a cable under
     tension stops the part leaving, a blocked path stops it moving as well, and
     only ``tool_access`` stops you reaching its own screws and plugs.
 
@@ -159,7 +157,7 @@ def applicable_preconditions(edges: list[Edge], action: ActionLike) -> list[Edge
 def _necessity_rank(necessity: str) -> int:
     """How binding this necessity is; 0 is the strongest.
 
-    Spec 7.1 allows only ``required`` and ``recommended``. Anything else is a
+    Only ``required`` and ``recommended`` exist. Anything else is a
     data error, and is ranked as ``required`` on purpose: a typo then makes the
     edge over-binding and noisy rather than silently dropping a constraint out
     of the ground truth.
@@ -175,7 +173,7 @@ def unmet(
     state: FrameState,
     necessity: str = "required",
 ) -> list[Edge]:
-    """Which of ``edges`` are not satisfied in ``state`` (spec 7.2).
+    """Which of ``edges`` are not satisfied in ``state``.
 
     An edge is satisfied when its blocker's state is one of
     :func:`~tda.core.graph_rules.required_states` for the edge's type and
@@ -205,7 +203,7 @@ def unmet(
 # 2. legal actions
 # --------------------------------------------------------------------------- #
 def loose_parts(instances: Mapping[str, InstanceRec], state: FrameState) -> list[str]:
-    """The loose parts (R16, ``attrs.loose``) still in the machine in ``state``, sorted."""
+    """The loose parts (``attrs.loose``) still in the machine in ``state``, sorted."""
     out = []
     for key, rec in instances.items():
         inst = state.get(key)
@@ -242,11 +240,11 @@ def legal_actions(
 ) -> list[VerbTarget]:
     """Every ``(verb, target)`` that is physically possible in ``state``.
 
-    A pair is legal when the verb applies to the target's class (spec 6.3), the
+    A pair is legal when the verb applies to the target's class, the
     target is in a state the verb can start from -- a screw is only unscrewed
     while ``fastened``, a latch only opened while ``closed``, a plug only pulled
     while ``plugged``, a part only removed while it is still there -- and no
-    precondition of spec 7.2 is unmet. Instances already ``removed`` are skipped.
+    precondition is unmet. Instances already ``removed`` are skipped.
 
     ``strict`` (the default) requires recommended edges to be satisfied too;
     ``strict=False`` weighs only the required ones, which is the wider set used
@@ -256,16 +254,15 @@ def legal_actions(
     has to be released before a part comes free shows up as a legal action too.
     The result is sorted and free of duplicates.
 
-    **Loose parts first** (R16, ``loose_first``, on by default): while a part
+    **Loose parts first** (``loose_first``, on by default): while a part
     marked ``attrs.loose`` (:data:`~tda.core.graph_rules.LOOSE_ATTR`) is still
     in the machine, the only legal actions are the ones that take the loose
     parts out -- ``remove`` of the part itself, and the actions on what its own
     removal plan needs (its lead unplugged). The flag is data, so a desktop
     without loose parts is unchanged.
 
-    **Dynamic occlusion** (``occluded``, optional): ``{X: [Y, ...]}`` as
-    :func:`tda.core.occlusion.occlusion_blockers` answers it for this moment --
-    a part Y above X covering at least 20 % of X's amodal mask. Every action on
+    **Dynamic occlusion** (``occluded``, optional): ``{X: [Y, ...]}`` as the
+    annotation tool's occlusion rule answers it for this moment -- a part Y above X covering at least 20 % of X's amodal mask. Every action on
     such an X is left out until no Y covers it any more. Not a stored edge:
     the caller computes it from the frame and hands it in.
     """
@@ -320,16 +317,16 @@ def moment_edges(
     one state; a plan (V7), a sequence check (V16) or a reason (V4) needs them as
     constraints that clear themselves as the plan goes on. Both are exactly that:
 
-    * occlusion ``{X: [Y, ...]}`` (:func:`tda.core.occlusion.occlusion_blockers`) is
+    * occlusion ``{X: [Y, ...]}`` (the annotation tool's occlusion rule) is
       ``covered_by(X <- Y)`` -- Y has to be opened, moved aside or taken out first, the
-      ``covered_by`` states, which are the occlusion module's own clearing states;
-    * a loose part L (R16) is ``blocked_by(X <- L, mode="loose")`` for every part X
+      ``covered_by`` states, which are the occlusion rule's own clearing states;
+    * a loose part L is ``blocked_by(X <- L, mode="loose")`` for every part X
       outside L's own way out (:func:`_loose_scope`, computed with the occlusion edges
       so a loose part's own occluder is part of its way out): every verb gated, only
       ``removed`` clears it.
 
     ``source`` is :data:`OCCLUSION_SOURCE` / :data:`LOOSE_SOURCE`, status ``accepted``;
-    nothing here is ever written to the ``relation`` table. Sorted, free of duplicates.
+    nothing here is ever stored. Sorted, free of duplicates.
     """
     out: list[Edge] = []
     stored = {(e.type, e.target, e.blocker) for e in active_edges(edges)}
@@ -338,7 +335,7 @@ def moment_edges(
             if ("covered_by", target, blocker) in stored:
                 continue  # the graph already says it
             out.append(Edge(type="covered_by", target=target, blocker=blocker,
-                            reason="covers it in this frame (dynamic occlusion, R17)",
+                            reason="covers it in this frame (dynamic occlusion)",
                             source=OCCLUSION_SOURCE, status="accepted"))
     if loose_first:
         loose = loose_parts(instances, state)
@@ -354,13 +351,13 @@ def moment_edges(
                 for part in loose:
                     out.append(Edge(type="blocked_by", target=key, blocker=part,
                                     mode=LOOSE_MODE,
-                                    reason="a loose part comes out first (R16)",
+                                    reason="a loose part comes out first",
                                     source=LOOSE_SOURCE, status="accepted"))
     return out
 
 
 # --------------------------------------------------------------------------- #
-# 3. sequence validation (spec 7.4)
+# 3. sequence validation
 # --------------------------------------------------------------------------- #
 #: Larger than any logical step, so ``state_at`` folds a whole prefix.
 _ALL_STEPS = 10**9
@@ -374,7 +371,7 @@ def validate_sequence(
     initial: Optional[Mapping[str, str]] = None,
     manual: Optional[Sequence[StateEvent]] = None,
 ) -> list[str]:
-    """Replay the observed actions and report every spec 7.4 breach.
+    """Replay the observed actions and report every breach of the constraints.
 
     Two checks, per action, against the state the moment before it happened:
 
@@ -391,20 +388,19 @@ def validate_sequence(
     preference, not a physical law, and a log that skips one is not wrong.
 
     ``initial`` is :func:`tda.core.states.initial_overrides` of the desktop's
-    hand-written events -- the state a part added in S1 starts in. Without it
+    hand-written events -- the state a part added by hand starts in. Without it
     an added clip the picture shows ``open``, linked to its module by ``of``,
     would be replayed ``closed`` and the module's removal reported as a breach.
-    An ``initial`` of ``removed`` is a part this machine does not have (task
-    U34): its own actions are not replayed at all -- D34's failed "remove the
+    An ``initial`` of ``removed`` is a part this machine does not have: its own
+    actions are not replayed at all -- D34's failed "remove the
     optical drive" is no constraint's business.
 
     ``manual`` is the desktop's hand-written events (``auto=False``). Those of
     step 1 and later are folded in before every action of a **later** step,
-    after the derived events of their own step, as
-    :func:`tda.core.truth_inputs.merge_events` folds them for every export:
-    a RAM stick added in S1 comes out through a hand-written event (R6, the
-    owner's 2026-11-04 ruling), and a replay blind to it called the board's
-    removal a breach that no export sees.
+    after the derived events of their own step, as the annotation tool's exports
+    fold them: a RAM stick added by hand comes out through a hand-written event,
+    and a replay blind to it would call the board's removal a breach that no
+    export sees.
     """
     active = active_edges(edges)
     ordered = sorted(actions, key=lambda a: (a.step, a.idx))
@@ -442,7 +438,7 @@ def validate_sequence(
 # 6. persistence
 # --------------------------------------------------------------------------- #
 def edges_to_db(db, desktop: int, edges: list[Edge]) -> list[int]:
-    """Upsert every edge into the ``relation`` table; returns their row ids.
+    """Upsert every edge into the annotation database's ``relation`` table; returns their row ids.
 
     ``(desktop, type, target, blocker)`` is unique, so re-running this after a
     re-import updates the existing rows instead of doubling them.
@@ -495,7 +491,7 @@ def edges_from_db(db, desktop: int) -> list[Edge]:
 def constraint_edges(edges: list[Edge]) -> list[Edge]:
     """The subset of an edge list that is actually the constraint graph.
 
-    The five hard types of spec 7.2, on settled instances. Two things share the
+    The five hard types, on settled instances. Two things share the
     ``relation`` table without being constraints and must not reach a digest, a
     cycle check or a replay:
 
@@ -503,7 +499,7 @@ def constraint_edges(edges: list[Edge]) -> list[Edge]:
       Studio import files there -- annotations of another kind, which gate
       nothing and have no :data:`REQUIRED_STATES` entry;
     * any edge naming a provisional ``ls:*`` key, which is a shape somebody drew
-      rather than a part anybody has decided exists (spec 3.2).
+      rather than a part anybody has decided exists.
     """
     return [
         e for e in edges
@@ -517,8 +513,7 @@ def edge_digest(edges: list[Edge]) -> Optional[str]:
 
     Only the constraint edges count (:func:`constraint_edges`), so the caller
     cannot change the answer by handing in more or less of the table than the
-    next caller did -- which is exactly how the stamped version and the accessor
-    came to disagree on the two desktops that carry Label Studio rows.
+    next caller did (two desktops carry Label Studio rows in that table).
 
     What goes in is what changes the *meaning* of the graph -- type, target,
     blocker, necessity, mode and status -- sorted, so two runs that derive the
@@ -541,11 +536,11 @@ def edge_digest(edges: list[Edge]) -> Optional[str]:
 def graph_version(db, desktop: int) -> Optional[str]:
     """The content hash of one desktop's stored constraint graph.
 
-    The one definition: ``constraints`` stamps exactly this, read back after its
-    write, and the exports quote exactly this. Computed from the ``relation``
+    The one definition: the annotation tool stamps exactly this, read back after
+    its write, and the exports quote exactly this. Computed from the ``relation``
     rows rather than read back from the meta stamp, so it cannot go stale -- a
     hand-added edge changes the answer immediately, and an export that quotes it
     is quoting what it shipped. ``None`` for a desktop with no constraint edges
-    at all, which is what ``python -m tda.cli constraints`` is for.
+    at all.
     """
     return edge_digest(edges_from_db(db, desktop))

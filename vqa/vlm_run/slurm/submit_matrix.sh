@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Submit every model x variant of the full evaluation (each an array over the export units).
-#   PACK=$SCRATCH/vlmpack_2026-11-02 bash submit_matrix.sh
+#   PACK=$DATA/vlm/vlmpack_2026-11-05 bash submit_matrix.sh
 # Edit the two lists; MODEL_TAG defaults to the model id with / -> _.
 set -euo pipefail
 : "${PACK:?set PACK}"
@@ -22,11 +22,14 @@ read -r -a VIEWS <<< "${VIEW_LIST:-$(bash "$HERE/../pack_units.sh" "$PACK")}"
 echo "[submit_matrix] units: ${VIEWS[*]}"
 ARRAY="--array=0-$(( ${#VIEWS[@]} - 1 ))"
 export VIEW_LIST="${VIEWS[*]}"
-VARIANTS=(image blind)          # overlay is meaningful for the scan view only (HANDOFF.md section 8.5)
-# the closed models' repeat subset is not shipped: draw it first (HANDOFF.md section 8.5) and point REPEAT_IDS at it
+VARIANTS=(image blind)          # overlay is meaningful for the scan view only
+# the closed models' repeat subset is not shipped: draw it for every unit (vqa/vlm_sample.py
+# --purpose repeat --export $PACK/eval_v3/<unit>.jsonl --out <dir>/<unit>), concatenate the
+# <dir>/<unit>/repeat.ids.txt files into one file and point REPEAT_IDS at it; each unit's job
+# keeps the ids of its own unit
 REPEAT_IDS="${REPEAT_IDS:-$PACK/eval_v3/repeat.ids.txt}"
 if [[ ${#CLOSED_MODELS[@]} -gt 0 && ! -f "$REPEAT_IDS" ]]; then
-  echo "no repeat subset at $REPEAT_IDS: draw it first (HANDOFF.md section 8.5), then REPEAT_IDS=<file>" >&2; exit 2
+  echo "no repeat subset at $REPEAT_IDS: draw it first (vlm_sample.py --purpose repeat), then REPEAT_IDS=<file>" >&2; exit 2
 fi
 
 for v in "${VARIANTS[@]}"; do

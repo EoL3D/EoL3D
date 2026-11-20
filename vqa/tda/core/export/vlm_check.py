@@ -1,15 +1,14 @@
-"""Grading a model's answer against one exported VLM record (W3b).
+"""Grading a model's answer against one question-answer record.
 
-The export (:mod:`tda.core.export.vlm`) ships every record with an
-``answer_check`` block saying how the answer is re-derived. This module is the
-other half: given the record, the label-side world of its desktop (the
-``<name>.oracle.jsonl`` sidecar) and a model's raw text, it parses the text
-and says how right it is. ``scripts/vlm_score.py`` loops it over a file and
-aggregates; ``scripts/vlm_to_chat.py`` reads :data:`RESPONSE_FORMATS` to tell
-the model what shape to answer in; ``scripts/vlm_references.py`` answers in
-those shapes too.
+Every record of the question-answer export carries an ``answer_check`` block
+saying how the answer is re-derived. This module is the other half: given the
+record, the label-side world of its desktop (the ``<name>.oracle.jsonl``
+sidecar) and a model's raw text, it parses the text and says how right it is.
+``vlm_score.py`` loops it over a file and aggregates; ``vlm_to_chat.py`` reads
+:data:`RESPONSE_FORMATS` to tell the model what shape to answer in;
+``vlm_references.py`` answers in those shapes too.
 
-Two parsers, both reported (spec 8.2, minutes 2026-10-31 §3):
+Two parsers, both reported:
 
 * **strict** -- the whole reply, fences stripped, is one JSON object;
 * **lenient** -- the first balanced ``{...}`` in the reply, Python-literal
@@ -27,7 +26,7 @@ whose ``blocked_rate_defined`` is true, and V7 is graded on (a) no step
 violating a required edge, (b) recall of the actions every legal plan must
 contain and (c) the goal reached -- with **no penalty** for extra steps.
 
-Part groups (the question redesign, spec 3.1 / 6): an oracle line may carry
+Part groups: an oracle line may carry
 ``groups`` (``{gid: {members, match_class, anchor, label}}``, ``gid =
 f"{match_class}@{anchor}"``), and a gold target may then be a group id. A
 model's words are grounded to a group by class + kind (:meth:`Grounder.
@@ -36,8 +35,8 @@ a set of group actions is graded as a set (V4 blockers, V10 done / started),
 and where two groups share a class the count of answers of that class is what
 is compared. V3 accepts the part acted on alone (or a member of its group), never a
 part attached to it; V8's ``components`` form is
-V1's grade restricted to ``class_filter``. A world without groups grades
-exactly as before.
+V1's grade restricted to ``class_filter``. A world without groups is graded
+instance by instance.
 
 Everything here is pure; the taxonomy is the only thing read from disk.
 """
@@ -59,9 +58,8 @@ __all__ = ["CAPABILITY_LAYERS", "RESPONSE_FORMATS", "VERBS", "Grade", "Grounder"
            "World", "format_instruction", "gold_reply", "answer_keys", "grade", "grounder",
            "parse_lenient", "parse_strict", "reference_option"]
 
-#: The capability layers of the evaluation. Not
-#: spec 8.2's L1-L4 of ``label.layer``: these group the tasks the way the
-#: results table does.
+#: The capability layers of the evaluation. Not the L1-L4 of ``label.layer``:
+#: these group the tasks the way the results table does.
 CAPABILITY_LAYERS = {
     "V1": "L1", "V2": "L1", "V8": "L1",
     "V4": "L2", "V5": "L2",
@@ -70,11 +68,11 @@ CAPABILITY_LAYERS = {
     "V15": "cross",
 }
 
-#: The verbs a model may use (spec 6.3).
+#: The verbs a model may use.
 VERBS = ("unscrew", "disconnect", "open", "release", "remove", "displace", "reorient")
 
 #: ``task -> the JSON a model is asked to answer with``. ``{allowed}`` is the
-#: class's state vocabulary (V2 / V14), filled by :func:`format_instruction`.
+#: class's state vocabulary (V2), filled by :func:`format_instruction`.
 RESPONSE_FORMATS = {
     "V1": 'Answer with JSON only: {"components": [{"class": "<part name>", '
           '"bbox": [x, y, width, height]}, ...]} in pixel coordinates of the image.',
@@ -83,12 +81,12 @@ RESPONSE_FORMATS = {
     "V2.count": 'Answer with JSON only: {"count": <integer>}.',
     "V3": 'Answer with JSON only: {"verb": "<one of: ' + ", ".join(VERBS) + '>", '
           '"target": "<the part acted on>", "tool": "<tool, or null>"}.',
-    # V3's free form (owner 2026-11-04): the action and where the machine changed
+    # V3's free form: the action and where the machine changed
     "V3.region": 'Answer with JSON only: {"verb": "<one of: ' + ", ".join(VERBS) + '>", '
                  '"target": "<the part acted on>", "tool": "<tool, or null>", '
                  '"region": [x, y, width, height]} (region: where the machine changed, in '
                  'pixel coordinates of the top-down scanner image, {scanner}).',
-    # V3's multi-step form (owner 2026-11-04): every action between the two moments
+    # V3's multi-step form: every action between the two moments
     "V3.span": 'Answer with JSON only: {"actions": [{"verb": "<one of: ' + ", ".join(VERBS)
                + '>", "target": "<part>"}, ...]} (every action carried out between the two '
                'moments).',
@@ -96,7 +94,7 @@ RESPONSE_FORMATS = {
           '["<part that has to be dealt with first>", ...]}.',
     "V5": 'Answer with JSON only: {"actions": [{"verb": "<verb>", "target": '
           '"<part>"}, ...]}.',
-    # V6 (owner 2026-11-04): every action possible now, one entry per action; the optional
+    # V6: every action possible now, one entry per action; the optional
     # "why" is not graded
     "V6.open": 'Answer with JSON only: {"actions": [{"verb": "<one of: ' + ", ".join(VERBS)
                + '>", "target": "<part>"}, ...], "why": "<optional: one sentence>"}.',
@@ -163,7 +161,7 @@ def format_instruction(record: dict) -> str:
             allowed = ["present", "removed"]
         if allowed:
             text = text.replace("{allowed}", ", ".join(allowed))
-        else:  # a record that lists no state space (built before V14 wrote one)
+        else:  # a record that lists no state space (an older record)
             text = text.replace("<one of: {allowed}>", "<state>").replace("{allowed}", "state")
     return text
 
@@ -355,7 +353,7 @@ def _class_words(label: str) -> str:
 
 
 def _plural(phrase: str) -> str:
-    """``"RAM latch"`` -> ``"RAM latches"`` (``vlm_groups.plural``, which is not vendored)."""
+    """``"RAM latch"`` -> ``"RAM latches"`` (the plural the exporter gives a group label)."""
     words = phrase.split(" ")
     last, low = words[-1], words[-1].lower()
     if last.isupper():
@@ -371,12 +369,12 @@ def _plural(phrase: str) -> str:
 
 @dataclass
 class World:
-    """One desktop's oracle line: instances, active edges, log (W3b sidecar).
+    """One desktop's oracle line: instances, active edges, log (the oracle sidecar).
 
-    ``groups`` is the redesign's table of interchangeable parts (spec 3.1):
+    ``groups`` is the table of interchangeable parts:
     ``{gid: {"members": [keys], "match_class", "anchor", "label"}}``, with
     ``gid = f"{match_class}@{anchor}"``; an old oracle line has none, and then
-    every group lookup answers "none" and grading is what it always was. A
+    every group lookup answers "none" and grading is per instance. A
     group id stands wherever an instance key may (a gold target): it answers
     :meth:`cls_of` / :meth:`match_class` like its members, and
     :meth:`members` expands it.
@@ -408,7 +406,7 @@ class World:
 
     @property
     def grouped(self) -> bool:
-        """Whether this world carries the redesign's groups (the new record contract)."""
+        """Whether this world carries part groups."""
         return bool(self.groups)
 
     def is_group(self, target: Optional[str]) -> bool:
@@ -432,7 +430,7 @@ class World:
         return (inst.get("label") or target) if inst else target
 
     def plain_name(self, target: Optional[str]) -> str:
-        """How a person reads a target **without an ordinal** (owner 2026-11-04): a group by its
+        """How a person reads a target **without an ordinal**: a group by its
         label, a part alone of its class on the desktop by its class ("CPU socket lever"), a
         part with an unordered locator by it (``instances[*].name``, written by the export:
         "screw that fastens the PSU"), any other part as "one of the N <class>" -- never
@@ -493,10 +491,10 @@ class Grounder:
     class, and a part or group of it is chosen only when the caller says which
     ones are eligible -- the group-equivalent reading of an answer that did not
     say which screw (:meth:`ground_in` for instances, :meth:`ground_group`
-    for the redesign's groups). On a world with groups, words are compared in
+    for part groups). On a world with groups, words are compared in
     the singular, so a group's plural label and a member's singular name are
-    the same class; a world without groups keeps the old wording rule
-    (:func:`_norm`), so old records grade exactly as before.
+    the same class; a world without groups keeps the plain wording rule
+    (:func:`_norm`).
     """
 
     def __init__(self, world: World):
@@ -623,8 +621,8 @@ class Grounder:
             return set(re.sub(r"\b\d+\b", " ", self.norm(t)).split())
 
         said = words(text)
-        # "one of the PSU cable connectors" names one member of that group (a plain name,
-        # owner 2026-11-04): its parts by their group's words, the group itself left aside
+        # "one of the PSU cable connectors" names one member of that group (a plain name):
+        # its parts by their group's words, the group itself left aside
         one = self.norm(text).startswith("one ")
         members = [c for c in candidates if not self.world.is_group(c)]
         if one and members:
@@ -642,7 +640,7 @@ class Grounder:
         return best
 
     def ground_group(self, text: Any, eligible: Sequence[str] = ()) -> Optional[str]:
-        """Model wording -> a group id or an instance key (spec 3.1, 6.2).
+        """Model wording -> a group id or an instance key.
 
         An exact key, label or group id names itself -- a member of a group
         that is among ``eligible`` stands for that group. A class phrase, in
@@ -683,7 +681,7 @@ class Grade:
 
 def answer_keys(record: dict) -> dict:
     """The answer a grader reads: with instance keys and group ids
-    (``answer_check.answer_keys``, the final round of 2026-11-04) where the record keeps
+    (``answer_check.answer_keys``) where the record keeps
     them apart from ``label.answer`` -- which names every part plainly, no ordinal, for the
     people and the gold reply -- else ``label.answer`` itself (an older record)."""
     label = record["label"]
@@ -726,11 +724,11 @@ def _as_bool(value: Any) -> Optional[bool]:
     return None
 
 
-#: The IoU thresholds of the COCO-style average beside V1's and V8's IoU >= 0.5 headline
-#: (owner 2026-11-04, decisions "V1 / V8（框）"): 0.50:0.05:0.95.
+#: The IoU thresholds of the COCO-style average beside V1's and V8's IoU >= 0.5 headline:
+#: 0.50:0.05:0.95.
 COCO_IOUS = tuple(round(0.5 + 0.05 * i, 2) for i in range(10))
 
-#: The frames a V1 / V8 answer is read in (the same decisions): the boxes as given, and every
+#: The frames a V1 / V8 answer is read in: the boxes as given, and every
 #: coordinate x 1.25 -- a model that answers in an internally resized 0.8 frame. The better
 #: grade is kept and ``metrics["frame"]`` says which won (a tie keeps 1.0).
 FRAME_SCALES = (1.0, 1.25)
@@ -822,7 +820,7 @@ def _g_v1(record, answer, world, tax, transform) -> Grade:
         truth, [(cls, _box(box, transform, frame)) for cls, box in items], thr))
 
 
-#: V2's count form (``derive == "screw_count"``, owner 2026-11-04): the score of an answer
+#: V2's count form (``derive == "screw_count"``): the score of an answer
 #: ``|answer - gold|`` away from the gold count; any other distance scores 0. The exact match
 #: is reported beside it (``exact``).
 COUNT_SCORES = {0: 1.0, 1: 0.8}
@@ -842,13 +840,13 @@ def _g_v2(record, answer, world, tax, transform) -> Grade:
     truth = answer_keys(record)
     prior = record["label"].get("prior_is_correct")
     if "count" in truth:
-        # exact 1.0, off by one 0.8, else 0 (owner 2026-11-04)
+        # exact 1.0, off by one 0.8, else 0
         score, off = count_score(answer.get("count"), truth["count"])
         exact = off == 0
         return Grade(True, score, {"correct": exact, "exact": exact, "off_by": off,
                                    "prior_is_correct": prior})
     ok = _norm(answer.get("state")) == _norm(truth["state"])
-    # cannot_tell is graded like any other state (V14 merged into V2, owner 2026-11-04)
+    # cannot_tell is graded like any other state
     return Grade(True, float(ok), {"correct": ok, "exact": ok, "prior_is_correct": prior,
                                    "cannot_tell": _norm(truth["state"]) == "cannot tell",
                                    "abstained": _norm(answer.get("state")) == "cannot tell"})
@@ -869,7 +867,7 @@ def _v3_slots(answer, slots, check, world, group) -> tuple[float, dict]:
     """One V3 slot set (verb, target class, target instance, tool) against the answer."""
     verb_ok = _norm(answer.get("verb")) == _norm(slots["verb"])
     target = slots.get("target_instance")
-    # the part acted on is the answer and nothing else (owner 2026-11-03): a part
+    # the part acted on is the answer and nothing else: a part
     # attached to it (a RAM latch on the motherboard, a screw on the cooler) is not,
     # whatever an older record's `accept_targets` lists beside the target; a group
     # target is named by its members' class, and a member of the group a target
@@ -898,7 +896,7 @@ def _g_v3(record, answer, world, tax, transform) -> Grade:
 
 
 def _g_v3_step(record, answer, world, tax, transform) -> Grade:
-    """Any action of the step, read as the first one is, scores (controller 2026-11-03).
+    """Any action of the step, read as the first one is, scores.
 
     A compound step (``answer.actions``: a PSU displaced and a connector pulled in
     one step) was carried out in every one of its actions, so the answer is graded
@@ -932,7 +930,7 @@ def _g_v3_step(record, answer, world, tax, transform) -> Grade:
     if len(sets) > 1:
         best = {**best, "matched_action": best_index}
     if check.get("region"):
-        # the free form (owner 2026-11-04): where the machine changed, graded beside the
+        # the free form: where the machine changed, graded beside the
         # action and never in its score -- IoU with the gold region, a hit at the threshold;
         # a box on a cropped / scaled picture is mapped back like V1 / V8's
         iou = _iou(_box(answer.get("region"), transform), check["region"])
@@ -954,9 +952,9 @@ def _g_v4(record, answer, world, tax, transform) -> Grade:
 def _blockers_f1(answered: Any, blockers: Sequence[str], world: World) -> float:
     """Set F1 of the answered blockers against the gold ones (keys or group ids).
 
-    An old world (no groups) keeps the old reading: each answer is grounded on
+    A world without groups keeps the plain reading: each answer is grounded on
     the whole gold list, and a class nothing in it has is dropped. With groups
-    (spec 3.1, 6.2) a class phrase claims the first gold target of its class not
+    a class phrase claims the first gold target of its class not
     yet claimed -- "the RAM latches" twice is the latches of two modules -- a
     member named exactly is its group, and a part that is no blocker, by class
     or by name, is a false positive; words that name no part are still dropped.
@@ -998,7 +996,7 @@ def _pairs_grounded(items: Any, world: Optional[World], eligible: Sequence[tuple
     A class phrase is resolved to an eligible target of its class (instance
     key or group id), each eligible one used once and in the order given --
     "unscrew a CPU cooler screw" twice is two screws, "open the RAM latches"
-    twice is the latches of two modules (spec 6.2: the count of group actions
+    twice is the latches of two modules (the count of group actions
     per class); among several of its class it takes the one its words fit best
     (:meth:`Grounder.closest`). A member named exactly stands for its group
     where the group is eligible, and on a world with groups an exact name
@@ -1027,8 +1025,8 @@ def _pairs_grounded(items: Any, world: Optional[World], eligible: Sequence[tuple
             key = g.resolve(item.get("target"), mine)[0]
             if world.grouped and (verb, key) in left:
                 # an exact name (or a member standing for its group) spends its
-                # target, so a later class phrase grounds to another one; an old
-                # world keeps the old reading (exact names are never spent)
+                # target, so a later class phrase grounds to another one; a world
+                # without groups keeps the plain reading (exact names are never spent)
                 left.remove((verb, key))
         elif mclass is not None:
             key = g.ground_group(item.get("target"), mine)
@@ -1075,7 +1073,7 @@ def _frontier_index(check: dict, world: World) -> tuple[dict, list[tuple[str, st
 
 
 def _g_v6_frontier(record, answer, world, tax, transform) -> Grade:
-    """V6 since the owner's 2026-11-04 rulings: the gold is every action possible now, grouped.
+    """V6: the gold is every action possible now, grouped.
 
     **mc**: the chosen option is right when it is the one inside the frontier. **open** and
     **constrained**: each answered action is grounded (class phrases to a target of their
@@ -1142,7 +1140,7 @@ def _g_v6(record, answer, world, tax, transform) -> Grade:
         option = options[LETTERS.index(choice)]
         pair = (option["verb"], option["target"])
         exact = LETTERS.index(choice) == reference_option(label)
-        # a group option (spec 3.1) is right when every member it lists is
+        # a group option is right when every member it lists is
         # equivalent -- the demonstrated option of a group reference always is
         group = pair in equivalent or exact or bool(option.get("members")) and all(
             (option["verb"], m) in equivalent for m in option["members"])
@@ -1227,15 +1225,14 @@ def _still_to_do(world: World, verb: str, member: str, gid: Optional[str], equiv
 
 def _g_v6_groups(world: World, verb: str, text: Any, reference: tuple, equivalent: set,
                  blocked: set, check: dict) -> Grade:
-    """V6's open form on a world with groups (spec 3.1, 6.1).
+    """V6's open form on a world with groups.
 
     The answer is grounded on the targets of the equivalent actions of its
     verb, then on the blocked ones -- so "remove the CPU" is the blocked action
     without an ordinal. A group and any of its remaining members are the same
     answer; a member named exactly stands for its group only while it is still to
     do -- its own ``(verb, member)`` is an equivalent action -- so "unscrew
-    motherboard screw 1" when screw 1 is already out is no match (review of the
-    fix wave). ``exact_match``: the reference itself, named exactly or (a group
+    motherboard screw 1" when screw 1 is already out is no match. ``exact_match``: the reference itself, named exactly or (a group
     reference) by its class; on a group step any member still to do is exact.
     """
     g = grounder(world)
@@ -1269,10 +1266,10 @@ def _v7_eligible(record: dict, world: World) -> list[tuple[str, str]]:
     The gold plan first (its targets are keys or group ids), then the graph's
     shortest plan and the demonstrated remainder. Those two are told member by
     member; on a world with groups a member's action is its group's action
-    (spec 3.1: one group action replaces the N member actions in a plan), so a
+    (one group action replaces the N member actions in a plan), so a
     class phrase or an exact member name grounds to the group, never to one
     screw of it. Repeats are kept (a group action said twice grounds twice and
-    is a no-op the second time). A world without groups grades as before.
+    is a no-op the second time). A world without groups grades per instance.
     """
     check = record["label"]["answer_check"]
     told = [*(check.get("reference_shortest") or []), *(check.get("demonstrated_remainder") or [])]
@@ -1319,7 +1316,7 @@ def _g_v7(record, answer, world, tax, transform) -> Grade:
         raise ValueError("V7 needs the world and the taxonomy")
     sim: dict[str, InstState] = {k: InstState(state=v, placement="in_chassis")
                                  for k, v in check["start_state"].items()}
-    # the rules a plan is replayed under (owner 2026-11-04): the stored graph, this frame's
+    # the rules a plan is replayed under: the stored graph, this frame's
     # occlusion, loose parts first -- and a constrained question's own rule
     present = [k for k, v in check["start_state"].items() if v != "removed"]
     rule_edges = constraint_edges_of(check)
@@ -1334,7 +1331,7 @@ def _g_v7(record, answer, world, tax, transform) -> Grade:
         if target is None:
             unresolved += 1
             continue
-        # a group action (spec 3.1) is its members' actions, done together:
+        # a group action is its members' actions, done together:
         # one step, one violation at most, a no-op only if no member moves
         known = applied = violated = False
         for key in world.members(target):
@@ -1400,7 +1397,7 @@ def _g_v7(record, answer, world, tax, transform) -> Grade:
     if check.get("form") == "constrained":
         metrics["constraint_kept"] = not rule_broken
     if count:
-        # how many plugs the plan unplugs against how many are in (owner 2026-11-04)
+        # how many plugs the plan unplugs against how many are in
         planned, present_n = len(disconnected), int(count.get("present") or 0)
         metrics.update(count_planned=planned, count_present=present_n,
                        count_exact=planned == present_n,
@@ -1439,7 +1436,7 @@ def _box_set_tp(truth: Sequence[dict], preds: list[tuple[Optional[str], Optional
 
 
 def _g_v8_components(record, answer, world, tax, transform) -> Grade:
-    """V8 on a class with several instances (spec 6.3): "localise every visible
+    """V8 on a class with several instances: "localise every visible
     <class / group>", graded as V1 restricted to ``class_filter``.
 
     The question names the class, so every answered box is a box of that class
@@ -1496,7 +1493,7 @@ def _g_v8(record, answer, world, tax, transform) -> Grade:
 
 
 def _g_v10(record, answer, world, tax, transform) -> Grade:
-    """Set F1 over the done actions; a group partly done is ``started`` (spec 6.1).
+    """Set F1 over the done actions; a group partly done is ``started``.
 
     A group action is done only when every member is; the groups begun but not
     finished are their own set (``started_f1``, on records that carry
@@ -1563,9 +1560,8 @@ def gold_reply(record: dict, world: Optional[World] = None, *, plain: bool = Fal
 
     Instance keys become their wording when a ``world`` is given, the way a
     model would name them. A sanity check of the whole chain: every gold reply
-    must score 1 (``tests/test_w3b_scripts.py``). ``plain`` names every part the way a
-    person reads it, no ordinal (:meth:`World.plain_name`): the reasoning side product's
-    answer, never graded.
+    must score 1 (``vlm_selfcheck.py``). ``plain`` names every part the way a
+    person reads it, no ordinal (:meth:`World.plain_name`); it is never graded.
     """
     label, task = record["label"], record["prompt"]["task"]
     answer = label["answer"]
@@ -1603,7 +1599,7 @@ def gold_reply(record: dict, world: Optional[World] = None, *, plain: bool = Fal
     elif key == "V6.open" and "actions" in answer:
         out = {"actions": [{"verb": a["verb"], "target": name(a["target"])}
                            for a in answer["actions"]]}
-    elif key == "V6.open":  # a record from before the final round: one next action
+    elif key == "V6.open":  # an older record: one next action
         out = {"verb": answer["verb"], "target": name(answer["target"])}
     elif task == "V7":
         out = {"plan": [{"verb": a["verb"], "target": name(a["target"])}

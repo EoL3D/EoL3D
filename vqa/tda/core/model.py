@@ -1,6 +1,6 @@
-"""Shared dataclasses and enums for the Teardown Annotator (TDA).
+"""Shared dataclasses and enums of the Teardown Annotator (TDA), the annotation tool.
 
-Everything in ``tda.core`` and ``tda.ui`` exchanges data through these types.
+The annotation tool's modules exchange data through these types.
 Coordinates are always in the *original image* frame of the view; masks are
 COCO RLE dicts ``{"size": [h, w], "counts": str}``.
 """
@@ -14,16 +14,15 @@ from typing import Optional
 VIEWS = ("scan", "oak1", "oak2", "rs")
 
 # --------------------------------------------------------------------------- #
-# the components gallery (task U10, spec 3.2b 零件合照)
+# the components gallery
 # --------------------------------------------------------------------------- #
 #: After each teardown the operators laid every removed part out on the table
 #: and photographed the layout several times (re-arranged between shots) with
 #: both OAK cameras and the RealSense -- and laid them out on the scanner's bed
-#: and scanned them, one to five times (task U42: ``cmp_scan``, first, as the
-#: scanner is first among :data:`VIEWS`). Those photos are **not** steps of the
-#: teardown: each camera's shots are a view of their own, a shot ``k = 1..N`` is
-#: an ordinary frame ``(desktop, k, view)``, and keyframes, the tools, the
-#: compiler, the truth table, Review and the COCO export work on it unchanged.
+#: and scanned them, one to five times (``cmp_scan``, first, as the scanner is
+#: first among :data:`VIEWS`). Those photos are **not** steps of the teardown:
+#: each camera's shots are a view of their own, and a shot ``k = 1..N`` is an
+#: ordinary frame ``(desktop, k, view)``.
 COMPONENT_VIEWS = ("cmp_scan", "cmp_oak1", "cmp_oak2", "cmp_rs")
 #: Every view a frame row can carry: the sequence first, then the gallery.
 ALL_VIEWS = VIEWS + COMPONENT_VIEWS
@@ -33,26 +32,26 @@ COMPONENT_CAMERA = {"cmp_scan": "scan", "cmp_oak1": "oak1", "cmp_oak2": "oak2",
 #: Classes that are not drawn in a layout photo: a plug, a cable and a screw
 #: cannot be told apart from the next one lying beside it. This is about the
 #: parts the **log** names (and the virtual ``cable:*`` nodes, which are no
-#: instances at all); a gallery-only part (:func:`is_gallery_only`, task U45)
+#: instances at all); a gallery-only part (:func:`is_gallery_only`)
 #: the annotator added from the shot itself is listed whatever its class.
 GALLERY_EXCLUDED_CLASSES = frozenset({"connector", "cable", "screw"})
-#: Classes whose instances are only ever made as gallery-only parts (task U45):
+#: Classes whose instances are only ever made as gallery-only parts:
 #: the taxonomy class ``loose_cable`` -- a cable laid out loose on the table.
 #: The sequence never names one (its cables are the virtual ``cable:<owner>``
 #: nodes, a name the class keeps clear of), so the sequence's COCO files do
 #: not list the category either.
 GALLERY_ONLY_CLASSES = frozenset({"loose_cable"})
-#: The taxonomy class ``screw_hole`` (task W3e, 螺丝孔): where a removed fan
+#: The taxonomy class ``screw_hole``: where a removed fan
 #: screw was, on the seven heatsink + fan desktops only. A detection category
 #: and nothing else -- no verb, no constraint edge, no VLM question -- whose
 #: ``attrs["of"]`` names the screw it is the hole of.
 SCREW_HOLE_CLASS = "screw_hole"
 #: The ``screw_hole`` attribute naming its screw's instance key.
 HOLE_OF_ATTR = "of"
-#: Classes appended to ``configs/taxonomy.yaml`` after the 框外零件's ``other``
-#: category took its id (task U18): COCO numbers them after it, in config
-#: order (``loose_cable`` 25, ``screw_hole`` 26), so no id a file has carried
-#: moves (:func:`tda.core.export.coco.category_ids`).
+#: Classes appended to ``configs/taxonomy.yaml`` after the ``other`` category
+#: (objects outside the machine) took its id: COCO numbers them after it, in
+#: config order (``loose_cable`` 25, ``screw_hole`` 26), so no id a file has
+#: carried moves.
 LATE_CLASSES = GALLERY_ONLY_CLASSES | {SCREW_HOLE_CLASS}
 
 
@@ -91,7 +90,7 @@ class StepType(str, Enum):
 # --------------------------------------------------------------------------- #
 # Label Studio drafts
 # --------------------------------------------------------------------------- #
-#: Prefix of the provisional keys :mod:`tda.core.ls_import` writes
+#: Prefix of the provisional keys the Label Studio import writes
 #: (``ls:Motherboard#1``).
 LS_PREFIX = "ls:"
 
@@ -100,43 +99,38 @@ def is_provisional(key: str) -> bool:
     """Is this a Label Studio draft key rather than an instance of the machine?
 
     The importer wrote 414 of these, each with a *real* taxonomy class and the
-    keyframes the team traced before this tool existed. They are draft material
-    an annotator resolves onto a real instance in S1 (spec 3.2), and until then
+    shapes traced in Label Studio before the annotation tool existed. They are
+    draft material an annotator resolves onto a real instance, and until then
     they are not parts of anything: they carry no actions, so the state machine
     would have them installed and in the chassis for ever, and every one of them
     would be a missing chassis shape on every frame of its desktop.
 
-    So a draft never needs geometry, is never compiled, never reaches a task
-    card or a queue, and is never exported. Two choke points enforce that --
-    :func:`tda.core.states.needs_geom` for geometry and
-    :meth:`tda.core.export.coco.DesktopCtx.cls_of` for the exports -- and both
-    ask this one question. The draft *keyframes* stay in the database untouched:
-    they are what a later "adopt draft" tool will read.
+    So a draft never needs geometry, is never compiled and is never exported:
+    :func:`tda.core.states.needs_geom` and the exporters both ask this one
+    question.
     """
     return str(key).startswith(LS_PREFIX)
 
 
 # --------------------------------------------------------------------------- #
-# parts the picture shows but the log never names (task U5b, spec 3.2)
+# parts the picture shows but the log never names
 # --------------------------------------------------------------------------- #
-#: ``attrs`` key naming the annotator who added an instance by hand in S1
-#: (:mod:`tda.core.extra`). Its presence is what makes a row an *extra*: the
+#: ``attrs`` key naming the annotator who added an instance by hand. Its
+#: presence is what makes a row an *extra*: the
 #: log never named it, so it has no actions and no raw names.
 EXTRA_ATTR = "added_by"
 
 
 def is_extra(rec: Optional["InstanceRec"]) -> bool:
-    """Did an annotator add this instance in S1 rather than the log name it?
+    """Did an annotator add this instance by hand rather than the log name it?
 
-    Here rather than in :mod:`tda.core.extra` for the reason
-    :func:`is_provisional` is: the graph rules, the relational heuristic and the
-    log importer all have to ask it, and none of them may import the module
-    that writes extras. An extra is an ordinary part of the machine -- it needs
+    The graph rules, the relational heuristic and the log importer all have to
+    ask it. An extra is an ordinary part of the machine -- it needs
     geometry, it is compiled, it is exported -- but nothing *about* it may be
     guessed: no heuristic fills a relation on it, no template edge starts at it
-    and no re-import drops it, because the sheet never knew it existed.
+    and no re-import drops it, because the log never knew it existed.
 
-    A 框外零件 (:func:`is_context`, task U18) carries ``added_by`` too, and is
+    An object outside the machine (:func:`is_context`) carries ``added_by`` too, and is
     **not** an extra: it is no part of the machine at all.
     """
     return (rec is not None and bool((rec.attrs or {}).get(EXTRA_ATTR))
@@ -144,7 +138,7 @@ def is_extra(rec: Optional["InstanceRec"]) -> bool:
 
 
 # --------------------------------------------------------------------------- #
-# 框外零件: objects outside the machine (task U18, spec 3.2c)
+# objects outside the machine
 # --------------------------------------------------------------------------- #
 #: Every key of a context object starts so: ``ctx.<class>.NN``. No taxonomy
 #: class is called ``ctx``, so a machine part's key never does.
@@ -166,13 +160,12 @@ def is_context_key(key: Optional[str]) -> bool:
 
 
 def is_context(rec: Optional["InstanceRec"]) -> bool:
-    """Is this instance a 框外零件 -- something in the picture, not in the machine?
+    """Is this instance an object outside the machine -- something in the picture, not in it?
 
     Something the frames show outside the machine nobody listed (another part
-    lying beside it, an unrelated object), drawn on its own (task U18). It has
-    no state, no action, no relation; it is never implied, never in the log,
-    never on a task card, never a reason ``Space`` refuses, and the machine's
-    parts neither cover it nor are covered by it. Everything that walks the
+    lying beside it, an unrelated object), drawn on its own. It has no state, no
+    action, no relation; it is never implied, never in the log, and the
+    machine's parts neither cover it nor are covered by it. Everything that walks the
     machine's parts asks this (or :func:`machine_only`); the key alone answers
     where only a key is at hand (:func:`is_context_key`).
     """
@@ -188,7 +181,7 @@ def machine_only(instances: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# gallery-only parts (task U45, spec 3.2b)
+# gallery-only parts
 # --------------------------------------------------------------------------- #
 #: ``attrs`` flag of a part added from a components-gallery shot: it lies on
 #: the table in the gallery, and the teardown sequence never asks for it.
@@ -196,18 +189,18 @@ GALLERY_ONLY_ATTR = "gallery_only"
 
 
 def is_gallery_only(rec: Optional["InstanceRec"]) -> bool:
-    """Is this a part of the machine that only the components gallery knows (U45)?
+    """Is this a part of the machine that only the components gallery knows?
 
     Every shot shows a different subset of the parts, and some of them -- a
-    loose cable, the eighth screw of a run the sheet stopped at seven -- are
-    named by no step at all. The annotator adds them from the shot itself
-    (「＋ 这张里还有…」); they carry ``gallery_only: true`` in ``attrs`` next to
+    loose cable, the eighth screw of a run the log stopped at seven -- are
+    named by no step at all. The annotator adds them from the shot itself;
+    they carry ``gallery_only: true`` in ``attrs`` next to
     the ``added_by`` every extra has, so they **are** parts of the machine
     (:func:`is_extra` is true, :func:`is_context` false) -- but they have no
     state, no event and no step. :func:`tda.core.states.initial_state` leaves
-    them out of every snapshot the way it leaves a 框外零件 out, so nothing
-    that walks the teardown -- geometry, the task card, ``Space``, the
-    cascade, the validation -- ever sees one; :func:`tda.core.states.gallery_state`
+    them out of every snapshot the way it leaves an object outside the machine
+    out, so nothing that walks the teardown -- geometry, the cascade, the
+    validation -- ever sees one; :func:`tda.core.states.gallery_state`
     puts each on the table of every shot whatever its class.
     """
     return (rec is not None and bool((rec.attrs or {}).get(GALLERY_ONLY_ATTR))
@@ -216,17 +209,17 @@ def is_gallery_only(rec: Optional["InstanceRec"]) -> bool:
 
 #: ``attrs`` flag of a sequence part of an excluded class (a screw, a
 #: connector, a cable) that the annotator laid out and drew in the components
-#: gallery anyway (task W3k): the gallery asks for that one instance.
+#: gallery anyway: the gallery asks for that one instance.
 IN_GALLERY_ATTR = "in_gallery"
 
 
 def is_in_gallery(rec: Optional["InstanceRec"]) -> bool:
-    """Is this sequence part opted into the components gallery (task W3k)?
+    """Is this sequence part opted into the components gallery?
 
     :data:`GALLERY_EXCLUDED_CLASSES` keeps the log's screws, connectors and
     cables out of the layout photo because one cannot be told from the next.
     A single distinctive one can: D02's motherboard screw 6 is also the drive
-    latch's stop screw, and the user drew it in the gallery shot (2026-11-01).
+    latch's stop screw, and it is drawn in the gallery shot.
     ``attrs.in_gallery: true`` makes :func:`tda.core.states.is_gallery_part`
     ask for exactly that instance; everything else about it -- its events, its
     step, the sequence's frames -- is unchanged, unlike a gallery-only part.
@@ -236,7 +229,7 @@ def is_in_gallery(rec: Optional["InstanceRec"]) -> bool:
 
 
 def teardown_only(instances: dict) -> dict:
-    """``instances`` as the teardown sequence knows them (task U45).
+    """``instances`` as the teardown sequence knows them.
 
     :func:`machine_only` without the gallery-only parts: what the constraint
     graph, the implied-part rules and the sequence's exports read, so none of
@@ -247,42 +240,38 @@ def teardown_only(instances: dict) -> dict:
 
 
 # --------------------------------------------------------------------------- #
-# a drive cage's own latch (task U20, spec 3.2 「机架自带卡扣」)
+# a drive cage's own latch
 # --------------------------------------------------------------------------- #
-#: ``attrs`` key naming the rule an implied instance (:mod:`tda.core.implied`)
-#: was created by; absent on the ``implied_when_referenced`` ones, which predate it.
+#: ``attrs`` key naming the rule an implied instance was created by; absent on
+#: the ``implied_when_referenced`` ones.
 IMPLIED_RULE_ATTR = "implied_rule"
 #: The rule "a drive cage has a latch of its own, open on the frame before the
-#: cage comes out" (:func:`tda.core.implied.cage_latches`).
+#: cage comes out".
 CAGE_LATCH_RULE = "drive_cage_latch"
 
 
 def is_cage_latch(rec: Optional["InstanceRec"]) -> bool:
-    """Is this the implied latch of a drive cage (task U20)?
+    """Is this the implied latch of a drive cage?
 
-    Here rather than in :mod:`tda.core.implied` for the reason :func:`is_extra`
-    is: the state machine reads it (:func:`tda.core.states.events_from_actions`
-    opens the latch on the frame before its cage comes out), and the state
-    machine may not import the importer's modules.
+    The state machine reads it (:func:`tda.core.states.events_from_actions`
+    opens the latch on the frame before its cage comes out).
     """
     attrs = (rec.attrs or {}) if rec is not None else {}
     return bool(attrs.get("implied")) and attrs.get(IMPLIED_RULE_ATTR) == CAGE_LATCH_RULE
 
 
 # --------------------------------------------------------------------------- #
-# what a step type means (spec 6.6)
+# what a step type means
 # --------------------------------------------------------------------------- #
 #: Step types that describe no annotatable moment of the teardown.
 #:
-#: An ``ignore`` step -- a calibration shot, a re-take -- gets no task card, is
-#: never compiled into the truth table, never carries a review status of its own
-#: and is never exported. The timeline still shows its frame, in the neutral
-#: colour of a step nobody has annotated, because the frame exists and the state
-#: machine and the shape anchors still run through it (spec 4.2, 缺帧处理).
+#: An ``ignore`` step -- a calibration shot, a re-take -- is never compiled into
+#: the truth table, never carries a review status of its own and is never
+#: exported. Its frame still exists, and the state machine still runs through it.
 SKIP_STEP_TYPES = frozenset({StepType.IGNORE.value})
 
-#: Step types that are never the "after" frame of a change question (spec 8.2
-#: V3): nothing happened before an ``initial`` frame, a ``dupli`` step is a
+#: Step types that are never the "after" frame of a change question (V3):
+#: nothing happened before an ``initial`` frame, a ``dupli`` step is a
 #: repeat of one already asked about, and an ``ignore`` step is not a moment.
 NO_CHANGE_STEP_TYPES = frozenset(
     {StepType.IGNORE.value, StepType.INITIAL.value, StepType.DUPLI.value}
@@ -292,11 +281,9 @@ NO_CHANGE_STEP_TYPES = frozenset(
 def step_is_annotatable(step_type: Optional[str]) -> bool:
     """Is there a moment of the teardown here to compile, confirm and export?
 
-    The single answer both halves of the tool read: the truth table gates on it
-    (:func:`tda.core.truth_inputs.annotatable_steps`) and so do the exports. They
-    used to disagree -- an ``ignore`` step was compiled, stamped and
-    confirmable, and then dropped on the way out -- which is annotator work with
-    nowhere to go. A step the table has no row for counts as ``normal``.
+    The single answer the annotation tool's truth table and its exports both
+    read, so they cannot disagree. A step the table has no row for counts as
+    ``normal``.
     """
     return str(step_type or StepType.NORMAL.value) not in SKIP_STEP_TYPES
 
@@ -388,8 +375,8 @@ class ShapeKeyframe:
     # manual | sam | model:<name>@<ver> | labelstudio | ls_adopted | carried | cut
     # ``labelstudio`` is the importer's own untouched draft row; ``ls_adopted``
     # is an annotator's shape built from one (``draft_id`` names which).
-    # ``cut`` is the pre-edit shape copied to the far side of a state boundary
-    # (tda.core.cut_follow), until somebody redraws its pixels.
+    # ``cut`` is the pre-edit shape copied to the far side of a state boundary,
+    # until somebody redraws its pixels.
     source: str = "manual"
     draft_id: Optional[int] = None
     version: int = 1
@@ -423,11 +410,10 @@ class OccluderMask:
 
 
 #: What a frame's ``visibility`` label may name as the reason a part in its
-#: place is not seen (task U15, 「被线挡住」): something nobody labels. The
-#: annotator's ``I`` writes ``cable``; ``other_unlabeled`` is for anything else
-#: that is not annotated (a later dialog), so far store-level only.
-#: ``viewpoint`` (task U24, 「角度看不到」): nothing covers it -- this camera
-#: simply cannot see it from where it stands. Set in Review's 可见性审查 (``Z``).
+#: place is not seen (hidden by a cable): something nobody labels.
+#: ``other_unlabeled`` is for anything else that is not annotated.
+#: ``viewpoint``: nothing covers it -- this camera simply cannot see it from
+#: where it stands.
 OCCLUDER_CABLE = "cable"
 OCCLUDER_OTHER = "other_unlabeled"
 OCCLUDER_VIEWPOINT = "viewpoint"
@@ -441,7 +427,7 @@ class FrameOverride:
     visible_rle: Optional[dict] = None
     visibility: Optional[str] = None
     #: Why the part is (partly) not seen although it is in its place: one of
-    #: :data:`OCCLUDERS`, or ``None`` for a bare label (task U15).
+    #: :data:`OCCLUDERS`, or ``None`` for a bare label.
     occluder: Optional[str] = None
 
 

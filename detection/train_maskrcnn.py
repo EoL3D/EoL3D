@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Baseline (b): torchvision Mask R-CNN ResNet-50-FPN, fine-tuned from COCO weights on a make_coco.py split.
 
-    python train_maskrcnn.py --train coco/train.json [--val coco/val.json] --run runs/maskrcnn_visible \
+    python detection/train_maskrcnn.py --train coco/train.json [--val coco/val.json] --run runs/maskrcnn_visible \
         [--size 1280] [--epochs 24] [--batch 4] [--lr 0.02] [--seed 0] [--weights coco] [--arch v2]
 
 * Input: every frame scaled to `--size` on its longer side (the frames are 1600 x 1600); random horizontal flip.

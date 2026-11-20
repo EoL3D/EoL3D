@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Every score file under $RUNS into one table: $RUNS/score.md (+ score.json). (W4-B)
+# Every score file under $RUNS into one table: $RUNS/score.md (+ score.json).
 #   PACK=... [RUNS=$PACK/runs] [TOOLS=$PACK/tools] [PYTHON=python] bash collect_scores.sh
 set -euo pipefail
 : "${PACK:?set PACK}"

@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """COCO evaluation (pycocotools) of bbox and / or segm predictions against a make_coco.py split.
 
-    python eval_coco.py --gt coco/test.json --pred preds.json --out runs/x/eval [--iou-types bbox segm]
-    python eval_coco.py --gt coco/test.json --selftest            # GT as predictions -> AP must be 1.0
+    python detection/eval_coco.py --gt coco/test.json --pred preds.json --out runs/x/eval [--iou-types bbox segm]
+    python detection/eval_coco.py --gt coco/test.json --selftest            # GT as predictions -> AP must be 1.0
 
 Predictions: a COCO results list, `[{"image_id", "category_id", "score", "bbox": [x, y, w, h],
 "segmentation": RLE}, ...]` (bbox is needed for bbox eval, segmentation for segm eval; one file may hold both).

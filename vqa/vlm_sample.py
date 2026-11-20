@@ -1,20 +1,20 @@
-"""Stratified, seeded draws from an export-vlm file (W3b).
+"""Stratified, seeded draws from a question-answer file.
 
-``python scripts/vlm_sample.py --export <vlm_scan.jsonl> --out <dir>
+``python vqa/vlm_sample.py --export <eval_v3/scan.jsonl> --out <dir>
 [--purpose audit|repeat] [--size 300] [--per-task 25] [--seed 0]
 [--test-desktops 50-66] [--max-share 0.2]``
 
-Two uses, one procedure (minutes 2026-10-31 §3):
+Two uses, one procedure:
 
 * ``audit`` -- the 300-item human audit of the frozen evaluation set: about
   ``--per-task`` per task, positives and negatives balanced where a task has
-  both, every test desktop represented. The user marks each row right or
+  both, every test desktop represented. A person marks each row right or
   wrong; 0 errors in 300 bounds the error rate at about 1 % (95 %).
 * ``repeat`` -- the 300-item subset the closed models are run on three times
   for the standard deviation. Same strata, a different seed stream, so it is
   not the audit sample.
 
-No task exceeds ``--max-share`` of the draw (V2 was 64 % of the day-1 export).
+No task exceeds ``--max-share`` of the draw.
 The test desktops are ``--test-desktops`` when given, else those whose
 records say ``split: test``, else every desktop.
 
@@ -43,7 +43,7 @@ def _key(seed: int, purpose: str, text: str) -> str:
 
 
 #: The forms a sample gives a share of their own (``by_form``): V3 free / roi, V6 open / mc /
-#: constrained, V7 free / constrained (owner 2026-11-04: every task and form its share).
+#: constrained, V7 free / constrained (every task and form its share).
 FORM_FIELDS = {"V3": "v3_form", "V6": "v6_form", "V7": "v7_form"}
 
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Download the pretrained weights the baselines start from, for machines whose compute nodes are offline.
 
-    python fetch_weights.py --yolo-dir <folder>      # Mask R-CNN weights go to $TORCH_HOME/hub/checkpoints
+    python detection/fetch_weights.py --yolo-dir <folder>      # Mask R-CNN weights go to $TORCH_HOME/hub/checkpoints
 
 * torchvision Mask R-CNN R50-FPN v2 and v1 COCO weights (maskrcnn_resnet50_fpn_v2_coco-73cbd019.pth,
   maskrcnn_resnet50_fpn_coco-bf2d0c1e.pth) -> $TORCH_HOME/hub/checkpoints/ (set TORCH_HOME first).

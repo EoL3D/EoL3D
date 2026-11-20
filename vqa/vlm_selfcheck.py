@@ -1,7 +1,7 @@
-"""The pack's self-check: the gold replies score 1.0 on every task (W4-A).
+"""The pack's self-check: the gold replies score 1.0 on every task.
 
-``python tools/vlm_selfcheck.py --truth <eval_v2/scan.jsonl> [<eval_v2/oak1.jsonl> ...
-<eval_v2/multi.jsonl>] --out <dir> [--resamples 50]``
+``python vqa/vlm_selfcheck.py --truth <eval_v3/scan.jsonl> [<eval_v3/oak1.jsonl> ...
+<eval_v3/multi.jsonl>] --out <dir> [--resamples 50]``
 
 For each truth file this writes the reply a perfect model would give to every
 record (:func:`tda.core.export.vlm_check.gold_reply`, instance keys spelled
@@ -13,11 +13,11 @@ pack whose scorer, oracle and records disagree anywhere exits 1 and names the
 rows. The ``multi`` unit (the action tasks: every camera of a moment, or the marked
 scanner image alone for V4, V6 multiple choice, V7 and V16) is checked
 like any other file; its oracle must hold a state table for every side-view image
-too. An ``eval_v1`` path is refused (the subset before the 2026-11-03 redesign).
+too. A path under an older evaluation subset is refused.
 
-Everything it imports lives in the pack's ``tools/`` (the vendored ``tda``
-subset): run it in a fresh virtual environment with nothing but PyYAML
-installed to prove the pack stands alone. ``<out>/selfcheck.json`` records the
+Everything it imports lives beside it (``vqa/`` here, ``tools/`` in the pack, with
+the vendored ``tda`` subset): run it in a fresh virtual environment with nothing
+but PyYAML installed to prove the tools stand alone. ``<out>/selfcheck.json`` records the
 result per file and task.
 """
 from __future__ import annotations
@@ -87,7 +87,7 @@ def check(truth_path, out_dir, *, resamples: int = 50, seed: int = 0) -> dict:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
-    ap.add_argument("--truth", nargs="+", required=True, help="export-vlm JSONL files")
+    ap.add_argument("--truth", nargs="+", required=True, help="question-answer JSONL files (e.g. eval_v3/<unit>.jsonl)")
     ap.add_argument("--out", required=True, help="where the gold predictions and scores go")
     ap.add_argument("--resamples", type=int, default=50)
     ap.add_argument("--seed", type=int, default=0)

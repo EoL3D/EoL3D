@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """End-to-end smoke test of the kit: 2 train desktops, 1 test desktop, 1 epoch, small images.
 
-    python smoke.py --data-root <hf download> --work <scratch folder> [--device cpu] [--skip-yolo] [--skip-maskrcnn]
+    python detection/smoke.py --data-root <hf download> --work <output folder> [--device cpu] [--skip-yolo] [--skip-maskrcnn]
 
 Runs make_coco -> eval self-test -> (coco_to_yolo -> train_yolo -> predict_yolo -> eval) and
 (train_maskrcnn -> predict_maskrcnn -> eval), and writes <work>/smoke_summary.md. The scores are meaningless
@@ -95,7 +95,7 @@ def main(argv=None):
                               "--title", "Smoke: Mask R-CNN, 1 epoch"], times, log)
         results["maskrcnn"] = json.loads((mrun / "eval_test" / "metrics.json").read_text(encoding="utf-8"))
 
-    lines = ["# Level-1 smoke test", "",
+    lines = ["# Detection kit smoke test", "",
              f"train desktops {args.train_desktops}, test desktops {args.test_desktops}, 1 epoch; "
              "scores are meaningless, only that every stage ran.", "",
              "| step | seconds |", "|---|---|"] + [f"| {k} | {v} |" for k, v in times.items()]

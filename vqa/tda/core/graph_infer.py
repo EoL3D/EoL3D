@@ -1,4 +1,4 @@
-"""Instance lookup and the relational-field heuristics (spec 2.3 / 7.1, 7.3).
+"""Instance lookup and the relational-field heuristics.
 
 The bottom of the graph stack, below :mod:`tda.core.graph_rules`: first "which
 instance does this name mean", then the two functions that use it to fill in
@@ -18,11 +18,11 @@ what the log importer could not.
 
 Two heuristics decide which part a screw fastens. The desktop usually has
 exactly one instance of the role's class and that is the end of it. When it has
-several -- the eight machines whose sheet lists a ``cpu_cooler.fan`` *and* a
+several -- the eight machines whose log lists a ``cpu_cooler.fan`` *and* a
 ``cpu_cooler.heatsink`` -- the tie is broken by **physical necessity in time**:
 you take a screw out in order to take something out, so a screw fastens the
 candidate that is removed *soonest after* the screw's own last action. The raw
-sheet name is used only as a veto: when it names a different candidate than the
+log name is used only as a veto: when it names a different candidate than the
 clock does, the two heuristics disagree and the field is left for the human.
 """
 from __future__ import annotations
@@ -33,7 +33,7 @@ from typing import Iterable, Optional
 # owns the answer: a draft is draft material everywhere in the tool, not only to
 # these heuristics. Here it means the rows take no part in "the one instance of
 # class X" -- neither as the candidate nor as a competitor -- and nothing is
-# ever written onto them (spec 3.2: S1 turns a draft into a real instance, and
+# ever written onto them (an annotator turns a draft into a real instance, and
 # only then does it carry relations).
 from tda.core.model import (
     LS_PREFIX,
@@ -65,9 +65,9 @@ __all__ = [
 def real_instances(instances: dict[str, InstanceRec], cls: str) -> list[str]:
     """Keys of the settled (non-draft) instances of ``cls``, sorted.
 
-    A 框外零件 (task U18) of the class is not one: it is not in the machine.
-    Nor is a gallery-only part (task U45): a cooler on the gallery's table must
-    not make the sequence's own cooler ambiguous for its screws.
+    An object outside the machine is not one: it is not in the machine.
+    Nor is a gallery-only part: a cooler on the gallery's table must not make
+    the sequence's own cooler ambiguous for its screws.
     """
     return [
         key for key, rec in sorted(instances.items())
@@ -85,8 +85,8 @@ def unique_of_class(instances: dict[str, InstanceRec], cls: str) -> Optional[str
 def blank(value: object) -> bool:
     """Is this relational field empty? ``None``, ``""`` and whitespace all are.
 
-    Clearing a cell in the S1 table leaves an empty string behind, and a
-    hand-edited sheet can leave a stray space. Both mean "not answered yet",
+    Clearing a cell in the annotation tool leaves an empty string behind, and a
+    hand-edited log can leave a stray space. Both mean "not answered yet",
     so they must reach the heuristics as a blank rather than as a value that
     resolves to nothing. Takes ``object`` rather than ``str`` because it is also
     asked about ``attrs`` entries, which come back out of JSON as whatever was
@@ -98,7 +98,7 @@ def blank(value: object) -> bool:
 def resolve_ref(instances: dict[str, InstanceRec], ref: Optional[str]) -> Optional[str]:
     """An instance key from a field that may hold a key or a bare class name.
 
-    ``logs._resolve_socket_hosts`` writes the literal ``"motherboard"`` when the
+    The log importer writes the literal ``"motherboard"`` when the
     raw step name says so, which is a class, not a key; the same happens for a
     hand-edited ``fastens`` or ``of``. A class resolves only when it is unique.
     """
@@ -124,7 +124,7 @@ SCREW_ROLE_CLASSES: dict[str, tuple[str, ...]] = {
     "psu": ("psu",),
 }
 
-#: Words a raw sheet name may use to single one candidate out, and the
+#: Words a raw log name may use to single one candidate out, and the
 #: spellings that count as that word. Checked longest-first so that
 #: ``"heat sink"`` is not read as two unrelated tokens.
 NAME_WORDS: tuple[tuple[str, tuple[str, ...]], ...] = (
@@ -140,7 +140,7 @@ _SUCCESS = "success"
 class _Clock:
     """When each instance was removed, and when each screw was last touched.
 
-    Built once per desktop from the recorded actions (spec 6.3). ``removed_at``
+    Built once per desktop from the recorded actions. ``removed_at``
     only counts a *successful* ``remove`` -- a failed attempt took nothing out
     -- while ``worked_at`` counts every ``unscrew``/``remove`` aimed at a screw,
     successful or not: the question it answers is when the operator was at that
@@ -165,7 +165,7 @@ class _Clock:
 
 
 def _named_candidate(rec: InstanceRec, candidates: list[str]) -> Optional[str]:
-    """The candidate the screw's raw sheet name points at, if it points at one.
+    """The candidate the screw's raw log name points at, if it points at one.
 
     ``"Heatsink screw 1"`` names the heatsink, ``"CPU fan screw 1"`` the fan. A
     name carrying both words (or neither), or one whose word fits several
@@ -213,7 +213,7 @@ def _by_the_clock(
     named = _named_candidate(rec, candidates)
     if named is not None and named != pick:
         return None, (
-            f"the sheet name {' / '.join(rec.raw_names)!r} says {named} but {pick} is "
+            f"the log name {' / '.join(rec.raw_names)!r} says {named} but {pick} is "
             f"the first removed (step {step}) after the screw's last action at step "
             f"{since} - the two heuristics disagree"
         )
@@ -256,17 +256,17 @@ def infer_relational_fields(
     tax: Taxonomy,
     actions: Optional[Iterable[ActionRec]] = None,
 ) -> list[str]:
-    """Fill the relational fields the log importer leaves empty (spec 2.3).
+    """Fill the relational fields the log importer leaves empty.
 
-    ``logs.py`` never sets ``fastens``, ``parent``/``attached`` or a latch's
-    ``of``, and it may write a bare class name into ``socket_host``. The rules
-    of spec 7.3 need those, so this fills the obvious defaults:
+    The log importer never sets ``fastens``, ``parent``/``attached`` or a latch's
+    ``of``, and it may write a bare class name into ``socket_host``. The edge rules
+    need those, so this fills the obvious defaults:
 
     * ``screw.fastens`` from ``screw.role`` -- see :func:`screw_target`, which
       takes the class's one instance, or, given ``actions``, the candidate the
       step order says the screw was undone for;
     * a captive screw's ``parent`` = what it fastens, with ``attached=True``
-      (spec 7.1: a captive cooler screw leaves with the cooler);
+      (a captive cooler screw leaves with the cooler);
     * the ``parent`` of an instance whose class declares a ``host_class`` = that
       class's unique instance, with ``attached=True`` -- see
       :func:`_infer_host_mounted`;
@@ -281,9 +281,9 @@ def infer_relational_fields(
     (:data:`LS_PREFIX`), and an ambiguous reference is *reported* by
     :func:`unresolved_relations` rather than guessed at. Returns one
     ``"<key>.<field> = <value>"`` line per field it filled; every one of them is
-    a guess with source ``"heuristic"``, to be confirmed in the S1 UI.
+    a guess with source ``"heuristic"``, to be confirmed by an annotator.
 
-    An instance an annotator added in S1 (:func:`tda.core.model.is_extra`) gets
+    An instance an annotator added by hand (:func:`tda.core.model.is_extra`) gets
     its *host* and nothing else: no ``fastens`` for a screw, no ``of`` for a
     RAM latch. The log never operated it, so the clock these guesses rest on
     says nothing about it, and every edge a guess would imply is one the
@@ -298,9 +298,9 @@ def infer_relational_fields(
 
     for key, rec in sorted(instances.items()):
         if is_provisional(key) or is_gallery_only(rec):
-            continue        # (U45: a gallery-only part rides on nothing, ever)
+            continue        # (a gallery-only part rides on nothing, ever)
         if rec.cls == "screw":
-            if not is_extra(rec):  # an added screw fastens what S1 says, or nothing
+            if not is_extra(rec):  # an added screw fastens what the annotator says, or nothing
                 _infer_screw(instances, rec, clock, put, filled)
         elif rec.cls == "connector":
             host = resolve_ref(instances, rec.socket_host)
@@ -316,7 +316,7 @@ def _infer_screw(instances, rec: InstanceRec, clock, put, filled: list[str]) -> 
 
     ``attached`` is set **only** in the same pass that fills ``parent``. It is a
     bool, so a stored ``False`` cannot say whether it is the dataclass default
-    or an annotator who deliberately unticked it in S1; an instance that already
+    or an annotator who deliberately unticked it; an instance that already
     carries a ``parent`` has been looked at, and re-ticking the flag under the
     annotator on the next run would be exactly the overwrite this heuristic
     promises never to do.
@@ -344,13 +344,13 @@ def _infer_host_mounted(instances, rec: InstanceRec, tax: Taxonomy, put,
     the *first* frame the annotator meets. Saying "instances of this class ride
     on the unique instance of class X" in ``taxonomy.yaml``
     (:meth:`tda.core.taxonomy.Taxonomy.host_class`) is enough: the
-    ``parent``/``attached`` pair is the mechanism spec 3.3 already has for a
+    ``parent``/``attached`` pair is the mechanism already used for a
     captive screw, and the cascade does the rest.
 
     ``attached`` is ticked **only** in the same pass that fills ``parent``, for
     exactly the reason :func:`_infer_screw` gives: the flag is a bool, so a
     stored ``False`` cannot say whether it is the dataclass default or an
-    annotator who unticked it in S1, and an instance that already carries a
+    annotator who unticked it, and an instance that already carries a
     ``parent`` has been looked at. A desktop with no unique host fills nothing
     and is reported by :func:`unresolved_relations` instead.
 
@@ -372,7 +372,7 @@ def _infer_host_mounted(instances, rec: InstanceRec, tax: Taxonomy, put,
 
 
 def _infer_ram_latches(instances: dict[str, InstanceRec], filled: list[str]) -> None:
-    """Retired (2026-11-04): a RAM latch's ``of`` is never guessed, so this fills nothing.
+    """Retired: a RAM latch's ``of`` is never guessed, so this fills nothing.
 
     It used to pair latches with modules by key order -- N latches split evenly
     over M modules, latch 1-2 to module 1 and so on. The keys say nothing about
@@ -384,8 +384,7 @@ def _infer_ram_latches(instances: dict[str, InstanceRec], filled: list[str]) -> 
     drawn, long after the log import this runs in.
 
     So ``attrs["of"]`` is set from the masks once, after review, and recorded
-    as ``relation_fix`` op rows (:mod:`tda.core.relation_replay`): a forced
-    re-import replays them, and an empty-slot latch, which locks nothing,
+    in the annotation tool, where a forced re-import replays it, and an empty-slot latch, which locks nothing,
     stays blank instead of being handed a module by its number. Kept as a no-op
     so the call in :func:`infer_relational_fields` keeps saying where the
     answer went.
@@ -396,14 +395,14 @@ def _infer_ram_latches(instances: dict[str, InstanceRec], filled: list[str]) -> 
 # --------------------------------------------------------------------------- #
 # unresolved_relations
 # --------------------------------------------------------------------------- #
-#: The four relational columns of spec 7.1 a class name may legitimately sit in
-#: until stage S1 narrows it down (mirrors ``steps_values.RELATION_FIELDS``).
+#: The four relational columns a class name may legitimately sit in until an
+#: annotator narrows it down.
 RELATION_FIELDS = ("parent", "mounted_on", "fastens", "socket_host")
 
 #: Prefix of every line this reports, so a caller can print them as they are.
 UNRESOLVED = "unresolved"
-#: The desktop has no instance of the class at all -- S1 has to create one (or
-#: decide the part is simply not tracked, user decision C7).
+#: The desktop has no instance of the class at all -- an annotator has to create
+#: one (or decide the part is simply not tracked).
 NO_CANDIDATE = "no candidate"
 #: The desktop has several and nothing here ranks them.
 AMBIGUOUS = "ambiguous"
@@ -433,10 +432,10 @@ def unresolved_relations(
     * a relational field holding a taxonomy *class* the desktop has zero or two
       or more real instances of;
     * a screw whose role names no part, several parts the clock cannot rank, or
-      one the clock and the sheet name disagree about (:func:`screw_target`
+      one the clock and the log name disagree about (:func:`screw_target`
       supplies the exact wording);
     * a *captive* screw that consequently has no ``parent``, which is what
-      makes it leave the chassis with its part (spec 3.3);
+      makes it leave the chassis with its part;
     * an instance of a class with a ``host_class`` whose desktop has no unique
       host to hang it on (:func:`_infer_host_mounted`) -- the same defect, on
       the board-mounted latches -- unless that host class is in ``declined``.
@@ -446,12 +445,12 @@ def unresolved_relations(
     different work: one needs an instance created, the other needs one picked.
     :func:`unresolved_kind` reads it back. A reference to something that is
     neither an instance nor a class is *not* reported here -- that is a dangling
-    pointer, which the S1 step table already asks about
-    (:mod:`tda.ui.steps_issues`). Provisional ``ls:*`` drafts are skipped: they
+    pointer, which the annotation tool reports elsewhere. Provisional ``ls:*`` drafts are skipped: they
     carry no relations yet by construction.
 
-    ``declined`` is the desktop's :meth:`tda.core.db.Db.declined_implied` set --
-    the classes whose implied instance the annotator has deleted in S1. The host
+    ``declined`` is the desktop's set of declined implied classes in the
+    annotation database -- the classes whose implied instance the annotator has
+    deleted. The host
     question is not asked about one of them: the answer would be "add a
     motherboard back", on every latch, for ever, which is telling the human to
     undo the decision they have just recorded. It is passed in rather than read
@@ -472,7 +471,7 @@ def unresolved_relations(
                 and unique_of_class(instances, host) is None):
             out.append(_host_line(instances, key, rec.cls, host))
         if rec.cls != "screw" or is_extra(rec):
-            continue  # an added screw's `fastens` is S1's to fill, not a question
+            continue  # an added screw's `fastens` is the annotator's to fill, not a question
         kind = AMBIGUOUS
         if blank(rec.fastens):
             target, why = screw_target(instances, rec, clock)
@@ -498,11 +497,11 @@ def _host_line(instances, key: str, cls: str, host: str) -> str:
         return _line(NO_CANDIDATE, (
             f"{key} is mounted on the {host} of this desktop, which has no {host} "
             f"instance - once the {host} leaves, {key} will still be asked for a "
-            f"mask; add the instance in the Instances tab"
+            f"mask; add the instance by hand"
         ))
     return _line(AMBIGUOUS, (
         f"{key} is mounted on a {host} and the desktop has {len(found)} of them "
-        f"- pick its parent in S1"
+        f"- pick its parent by hand"
     ))
 
 
@@ -512,9 +511,9 @@ def _class_line(instances, key: str, name: str, value: str) -> str:
     if not found:
         return _line(NO_CANDIDATE, (
             f"{key}.{name} = {value!r} - class {value!r} has no instance on this "
-            f"desktop; add the instance in the Instances tab or leave it unresolved"
+            f"desktop; add the instance by hand or leave it unresolved"
         ))
     return _line(AMBIGUOUS, (
         f"{key}.{name} = {value!r} names a class the desktop has {len(found)} "
-        f"instances of - pick one in S1"
+        f"instances of - pick one by hand"
     ))

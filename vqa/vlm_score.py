@@ -1,6 +1,6 @@
-"""Score a model's answers against an export-vlm file (W3b).
+"""Score a model's answers against a question-answer file.
 
-``python scripts/vlm_score.py --truth <vlm_scan.jsonl> --pred <model.jsonl>
+``python vqa/vlm_score.py --truth <eval_v3/scan.jsonl> --pred <model.jsonl>
 [--chat <chat.jsonl>] --out <dir> [--name <model>] [--seed 0] [--resamples 1000]``
 
 ``--pred`` is one JSON object per line, ``{"id", "raw_text"}``. Every record
@@ -15,12 +15,12 @@ V16 / change V3 V12 V10 / cross V15) and per question template, each with a
 with replacement, ``--resamples`` times, seeded). Beside the primary score:
 
 * V2's headline row ``V2`` is every V2 question -- perceiving the part's
-  current state (owner 2026-11-03; ``eval_v3`` draws V2 equally over classes and
+  current state (``eval_v3`` draws V2 equally over classes and
   half ``prior_is_correct = false``); ``V2-prior-wrong`` (the questions the
   class alone does not answer) is the secondary row, a shortcut check;
 * V6's headline (``headline.v6_open``, table row ``V6``) is the **open**
   question "list every action that can be carried out now": F1 over the frontier's
-  groups (owner 2026-11-04), precision and recall beside it; the multiple choice
+  groups, precision and recall beside it; the multiple choice
   (one option inside the frontier) is the secondary row ``V6-mc``
   (``headline.v6_mc``) and the constrained form (one rule in words) the row
   ``V6-constrained``, graded like the open form plus ``constraint_violation`` (the
@@ -29,16 +29,16 @@ with replacement, ``--resamples`` times, seeded). Beside the primary score:
   constrained form is the row ``V7-constrained``, with ``constraint_kept`` and the
   plug count (``count_exact``, ``count_abs_error``: how many plugs the plan unplugs
   against how many are in);
-* V2's state questions answer ``cannot_tell`` on a part the picture does not show
-  (V14 merged into V2): ``cannot_tell_accuracy`` is the row over those;
+* V2's state questions answer ``cannot_tell`` on a part the picture does not show:
+  ``cannot_tell_accuracy`` is the row over those;
 * V10 adds the progress-bin accuracy and, on records that carry
-  ``answer.started`` (groups partly done, spec 6.1), ``started_f1`` -- the set
+  ``answer.started`` (groups partly done), ``started_f1`` -- the set
   of group actions begun but not finished, graded apart from the done set;
-* action targets may be group ids (the redesign's ``groups`` in the oracle):
+* action targets may be group ids (``groups`` in the oracle):
   :mod:`tda.core.export.vlm_check` grounds the model's words to them;
 * records whose truth rests on a captive screw's tightness
   (``image_undecidable``) are also scored without;
-* two reference rows stand beside every task (W4-C): **chance** -- the
+* two reference rows stand beside every task: **chance** -- the
   expected score of a uniform guess over the record's answer space, by the
   rule in :data:`CHANCE_RULES` (binary tasks 0.5, V6-mc 1/|options|, V2
   1/|allowed|, open tasks 0) -- and **frequency** -- the most frequent gold
@@ -67,19 +67,19 @@ import vlm_io as IO  # noqa: E402
 from tda.core.export.vlm_check import CAPABILITY_LAYERS, count_score, grade  # noqa: E402
 
 LAYER_ORDER = ("L1", "L2", "L3", "change", "cross")
-#: V6's secondary record type, the multiple choice (W3b ruling): ``V6`` in the
+#: V6's secondary record type, the multiple choice: ``V6`` in the
 #: tables is the open form, the headline.
 V6_MC = "V6-mc"
 #: The V2 questions the class prior answers wrong (``prior_is_correct = false``);
 #: the ``V2`` row, the headline, is every V2 question.
 V2_PRIOR_WRONG = "V2-prior-wrong"
-#: V3's second form (owner 2026-11-04): the same step with a yellow hint box drawn around where
+#: V3's second form: the same step with a yellow hint box drawn around where
 #: the machine changed. ``V3`` in the tables is the free form, the headline.
 V3_ROI = "V3-roi"
-#: The constrained forms (owner 2026-11-04): one rule in words added to the question.
+#: The constrained forms: one rule in words added to the question.
 V6_CONSTRAINED = "V6-constrained"
 V7_CONSTRAINED = "V7-constrained"
-#: V3's multi-step form and V12 across 2-3 steps (owner 2026-11-04 expansion).
+#: V3's multi-step form and V12 across 2-3 steps.
 V3_SPAN = "V3-span"
 V12_SPAN = "V12-span"
 #: Secondary record types: the layers count each headline row once.
@@ -139,9 +139,9 @@ def task_key(record: dict) -> str:
 def _rows_of(task: str, label: dict) -> list[str]:
     """The table rows a record counts in: its task; V2 also ``V2-prior-wrong``.
 
-    V2's headline row is every V2 question (owner 2026-11-03: V2 measures the
-    perception of the current state); the questions the class prior gets wrong
-    are the secondary row ``V2-prior-wrong`` (review M).
+    V2's headline row is every V2 question (V2 measures the perception of the
+    current state); the questions the class prior gets wrong are the secondary
+    row ``V2-prior-wrong``.
     """
     if task == "V2" and label.get("prior_is_correct") is False:
         return [task, V2_PRIOR_WRONG]
@@ -188,7 +188,7 @@ def chance_of(record: dict, world, tax) -> Optional[float]:
                     and (inst.get("attrs") or {}).get("role") == role
                     and (captive is None
                          or bool((inst.get("attrs") or {}).get("captive")) == bool(captive)))
-            # a uniform guess over 0..n, graded exact 1.0 / off by one 0.8 (owner 2026-11-04)
+            # a uniform guess over 0..n, graded exact 1.0 / off by one 0.8
             gold = int(answer["count"])
             return sum(count_score(guess, gold)[0] for guess in range(n + 1)) / (n + 1)
         states = _states_of(record, world, tax)
@@ -338,13 +338,13 @@ def score(truth_path, pred_path, chat_path=None, *, resamples: int = 1000,
                 per_template[label.get("template_id", "?")].append(row)
             m = g.metrics
             if task == "V3" and label["answer_check"].get("region"):
-                # where the machine changed (owner 2026-11-04): beside the action, not in it
+                # where the machine changed: beside the action, not in it
                 extras[task]["region_iou"].append((desk, float(m.get("region_iou") or 0.0)))
                 extras[task]["region_hit"].append((desk, float(bool(m.get("region_hit")))))
             if not label.get("image_undecidable"):
                 extras[task]["decidable"].append(row)
             if task == "V2":
-                # the count form scores an off-by-one 0.8 (owner 2026-11-04): `exact` is
+                # the count form scores an off-by-one 0.8: `exact` is
                 # the exact matches alone, over every V2 question (and the prior-wrong row)
                 for key in rows_of:
                     extras[key]["exact"].append((desk, float(bool(m.get("exact")))))
@@ -370,7 +370,7 @@ def score(truth_path, pred_path, chat_path=None, *, resamples: int = 1000,
                     extras[task]["count_exact"].append((desk, float(m["count_exact"])))
                     extras[task]["count_abs_error"].append((desk, float(m["count_abs_error"])))
             if task in ("V1", "V8") and g.parsed:
-                # the boxes (owner 2026-11-04, "V1 / V8（框）"): the headline stays IoU >= 0.5;
+                # the boxes: the headline stays IoU >= 0.5;
                 # beside it the COCO-style average over 0.50:0.05:0.95, and which frame won
                 # (the boxes as given, or x 1.25 for a model answering in a 0.8 frame)
                 for name in ("f1_50_95", "hit_50_95"):
@@ -408,7 +408,7 @@ def score(truth_path, pred_path, chat_path=None, *, resamples: int = 1000,
     out["shortcut_upper_bound"] = _shortcuts(summary)
     out["shortcut_upper_bound_note"] = ("in-sample upper bound: the best prompt-only "
                                         "classifier measured on the full export, not a model")
-    # the two reference rows (W4-C): chance by rule, frequency fitted on train
+    # the two reference rows: chance by rule, frequency fitted on train
     out["chance"] = {}
     for key in sorted(set(chance_rows) | set(chance_unsized)):
         values = chance_rows.get(key) or []
@@ -542,7 +542,7 @@ def main(argv=None) -> int:
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resamples", type=int, default=1000)
     ap.add_argument("--prior", default=None,
-                    help="protocol_prior.report.json of scripts/vlm_references.py: "
+                    help="protocol_prior.report.json of vlm_references.py: "
                          "its accuracy is printed beside each task (the V6 "
                          "multiple-choice ceiling)")
     args = ap.parse_args(argv)

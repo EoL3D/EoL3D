@@ -1,8 +1,8 @@
 #!/bin/bash
 # One open model x one input variant, an array over the five units; vllm offline on one GPU.
-#   sbatch --export=ALL,PACK=$SCRATCH/vlmpack_2026-11-02,MODEL=Qwen/Qwen3-VL-8B-Instruct,VARIANT=image open_model.sbatch
+#   sbatch --export=ALL,PACK=$DATA/vlm/vlmpack_2026-11-05,MODEL=Qwen/Qwen3-VL-8B-Instruct,VARIANT=image open_model.sbatch
 #   sbatch --export=ALL,PACK=...,MODEL=OpenGVLab/InternVL3_5-8B,VARIANT=blind open_model.sbatch
-# Pilot (100 items, one view): add SUBSET=$PACK/pilot_ids.txt and --array=0.
+# A short trial on one unit: add SUBSET=<a file of record ids> and --array=0.
 #SBATCH --job-name=vlm_open
 #SBATCH --time=08:00:00
 #SBATCH --ntasks=1
@@ -11,16 +11,16 @@
 #SBATCH --gres=gpu:a100:1
 #SBATCH --array=0-4
 #SBATCH --output=logs/%x_%A_%a.out
-# TODO(hprc): the GPU partition / account of the cluster you are on, e.g.
+# EDIT: your GPU partition / account, e.g.
 ##SBATCH --partition=gpu
 ##SBATCH --account=XXXXXXXXX
 # A 70B-class model: --gres=gpu:a100:4 (or h100:2) and RUN_ARGS="--tensor-parallel 4".
 set -euo pipefail
 
-# TODO(hprc): module loads matching the wheels in requirements-vllm.txt (CUDA 12.8 for vllm 0.11)
+# EDIT: load Python / CUDA matching the wheels in requirements-vllm.txt (CUDA 12.8 for vllm 0.11), for example
 # module purge
-# module load GCCcore/13.3.0 Python/3.12.3 CUDA/12.8.0
-# module load WebProxy        # only if the compute nodes need it to reach the Hub (weights are better pre-fetched)
+# module load Python/3.12 CUDA/12.8
+# (and a web proxy only if the compute nodes need one to reach the Hub; weights are better pre-fetched)
 source "${VENV:-$SCRATCH/venvs/vlmpack}/bin/activate"
 export HF_HOME="${HF_HOME:-$SCRATCH/hf}"           # weights live on scratch, never in $HOME
 export HF_HUB_OFFLINE="${HF_HUB_OFFLINE:-1}"       # pre-fetch with `hf download <model>` on a login node

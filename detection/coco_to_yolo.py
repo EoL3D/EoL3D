@@ -1,13 +1,13 @@
 #!/usr/bin/env python
 """Convert make_coco.py splits to an Ultralytics YOLO segmentation dataset.
 
-    python coco_to_yolo.py --coco runs/coco_visible --out runs/yolo_visible [--link auto|hardlink|symlink|copy]
+    python detection/coco_to_yolo.py --coco runs/coco_visible --out runs/yolo_visible [--link auto|hardlink|symlink|copy]
 
-Layout written (the pack itself is never written to):
-    <out>/images/<split>/D<nn>_S<nn>.png   link (or copy) of the pack picture
+Layout written (the downloaded data is never written to):
+    <out>/images/<split>/D<nn>_S<nn>.png   link (or copy) of the dataset picture
     <out>/labels/<split>/D<nn>_S<nn>.txt   one line per instance: class x1 y1 x2 y2 ... (normalised polygon)
-    <out>/data.yaml                        Ultralytics dataset file (names = pack class names, contiguous ids)
-    <out>/category_map.json                YOLO class index -> pack category id (used by predict_yolo.py)
+    <out>/data.yaml                        Ultralytics dataset file (names = dataset class names, contiguous ids)
+    <out>/category_map.json                YOLO class index -> dataset category id (used by predict_yolo.py)
 
 Only `iscrowd = 0` rows become labels (YOLO has no ignore regions; the ignore regions are therefore
 background during training, as in most COCO-style YOLO training). A mask with several pieces (an occluded

@@ -1,1 +1,1 @@
-"""Core, Qt-free logic: index, logs, taxonomy, db, masks, states, compiler, truth, export."""
+"""Core, Qt-free logic: the taxonomy, the state machine, the constraint graph and the scorer."""

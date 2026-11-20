@@ -1,17 +1,17 @@
 """The frozen evaluation subset of the VLM pack.
 
-``python scripts/vlm_eval_set.py --export <vlm_scan.jsonl> [<vlm_oak1.jsonl> ... <vlm_multi.jsonl>]
+``python vqa/vlm_eval_set.py --export <data/vlm_scan.jsonl> [<data/vlm_oak1.jsonl> ... <data/vlm_multi.jsonl>]
 --out <dir>/eval_v3 [--seed 0] [--target-binary 400] [--target-other 300]
 [--max-share 0.2] [--audit 300]``
 
 Every model is run on the same subset, drawn once from the export units over
-**all** desktops (zero-shot: no training split is spent). Since the final round of
-2026-11-04 the subset is ``eval_v3``: perception (V1 V2 V8 V15; V14 merged into V2)
-comes from the four camera units, the action tasks (V3 V4 V6 V7 V10 V12 V16) from the
-``multi`` unit; the command line refuses an ``eval_v1`` / ``eval_v2`` path
-(:func:`refuse_old_eval`). The ids of ``eval_v2`` (``configs/vlm_keep/``) are drawn first
-inside every stratum, so a record that survives keeps its place. Per bucket (a task, and
-the constrained forms of V6 and V7 apart, :func:`bucket_of`):
+**all** desktops (zero-shot: no training split is spent). The subset is ``eval_v3``:
+perception (V1 V2 V8 V15) comes from the four camera units, the action tasks (V3 V4 V6
+V7 V10 V12 V16) from the ``multi`` unit; the command line refuses a path under an older
+evaluation subset (:func:`refuse_old_eval`). The ids of the earlier subset and of its
+audit sample (``KEEP_IDS``, ``KEEP_AUDIT_IDS``: ``configs/vlm_keep/`` at the top of this
+repository) are drawn first inside every stratum. Per bucket (a task, and the
+constrained forms of V6 and V7 apart, :func:`bucket_of`):
 
 * at least ``--target-binary`` records for the yes / no tasks (V4 feasible or
   not, V12 changed or not, V15 same moment or not) and
@@ -20,8 +20,7 @@ the constrained forms of V6 and V7 apart, :func:`bucket_of`):
   records; V6 constrained and V7 constrained are buckets of their own; V3's roi
   partner rides with its free record;
 * the records are allocated **per unit in proportion to the export** (a task
-  lives in one unit since the redesign, so this is the identity unless several
-  units hold it), then **equally over the task's
+  lives in one unit, so this is the identity unless several units hold it), then **equally over the task's
   strata** (:func:`strata`), level by level: V4 feasible / infeasible, the
   infeasible half over ``truth_source``; V2 ``prior_is_correct`` false / true,
   then class; V12 changed / unchanged, then the negative's kind; V6 by frontier size,
@@ -36,7 +35,11 @@ the constrained forms of V6 and V7 apart, :func:`bucket_of`):
 
 Deterministic: every order is a SHA-256 of the seed and a record id (or a
 desktop number), never ``random`` or ``hash()``. Two runs over the same export
-write the same bytes.
+write the same bytes. Run on the pack's ``data/vlm_scan.jsonl``, ``vlm_oak1.jsonl``,
+``vlm_oak2.jsonl`` and ``vlm_multi.jsonl`` with ``--audit 300`` and the other defaults,
+this draw reproduces the released ``eval_v3/`` byte for byte (``ids.txt``, every
+``<unit>.jsonl`` with its manifest, oracle and summary, ``table.md``, ``table.json`` and
+``audit/audit.ids.txt``, ``audit.jsonl``, ``audit.sheet.md``).
 
 Writes ``ids.txt`` (one record id per line, task order), ``<view>.jsonl`` (the
 chosen records of each export, in the export's order) with the sidecars the
@@ -66,12 +69,9 @@ __all__ = ["BINARY_TASKS", "EVAL_VERSION", "OLD_EVAL_VERSIONS", "TASK_ORDER",
            "allocate_equal", "allocate_proportional", "build", "draw", "refuse_old_eval",
            "strata", "table_markdown", "units_of"]
 
-#: The subset's name; bumped when the draw or its parameters change (eval_v2: the
-#: redesign of 2026-11-03 -- marks, part groups, multi-view action tasks; eval_v3: the final
-#: round of 2026-11-04 -- the corrected graph, V6 every action possible now (open / mc /
-#: constrained), V7 free / constrained, V14 merged into V2).
+#: The subset's name; bumped when the draw or its parameters change.
 EVAL_VERSION = "eval_v3"
-#: Subsets the current records no longer match: a path through one is refused.
+#: Older subsets the current records no longer match: a path through one is refused.
 OLD_EVAL_VERSIONS = ("eval_v1", "eval_v2")
 #: Tasks whose answer is a yes / no: the larger target.
 BINARY_TASKS = frozenset({"V4", "V12", "V12.span", "V15"})
@@ -79,12 +79,13 @@ TARGET_BINARY = 400
 TARGET_OTHER = 300
 MAX_SHARE = 0.2
 SEED = 0
-#: Table order (the spec's codes; V5 is not in the default export). The constrained forms
+#: Table order (V5 is not in the default export). The constrained forms
 #: of V6 and V7 are drawn as buckets of their own (:func:`bucket_of`).
 TASK_ORDER = ("V1", "V2", "V3", "V3.span", "V4", "V5", "V6", "V6.constrained", "V7",
               "V7.constrained", "V8", "V10", "V12", "V12.span", "V15", "V16")
-#: The ids of the subset before (``eval_v2``) and of its audit sample, kept wherever the record
-#: still exists (the draw prefers them inside every stratum).
+#: The ids of an earlier subset and of its audit sample, kept wherever the record still
+#: exists (the draw prefers them inside every stratum). Read only when the files exist;
+#: they are in ``configs/vlm_keep/`` at the top of this repository.
 KEEP_DIR = Path(__file__).resolve().parents[1] / "configs" / "vlm_keep"
 KEEP_IDS = KEEP_DIR / "eval_v2.ids.txt"
 KEEP_AUDIT_IDS = KEEP_DIR / "eval_v2.audit.ids.txt"
@@ -92,7 +93,7 @@ KEEP_AUDIT_IDS = KEEP_DIR / "eval_v2.audit.ids.txt"
 
 def bucket_of(record: dict) -> str:
     """The draw's bucket: the task, and the constrained form of V6 / V7 apart (each its own
-    target, owner 2026-11-04)."""
+    target)."""
     task = record["prompt"]["task"]
     label = record["label"]
     if task == "V6" and label.get("v6_form") == "constrained":
@@ -120,9 +121,9 @@ VIEWS = ("scan", "oak1", "oak2", "rs", "multi")
 
 def refuse_old_eval(*paths) -> None:
     """``SystemExit`` whose message names the current subset when a path goes through
-    a superseded subset directory (``eval_v1``): its records are the old questions,
-    and scored with the new tools they would mean something else. The interpreter
-    prints the message and exits 1."""
+    an older subset directory: its records are older questions, and scored with these
+    tools they would mean something else. The interpreter prints the message and
+    exits 1."""
     for path in paths:
         if path is None:
             continue
@@ -130,8 +131,8 @@ def refuse_old_eval(*paths) -> None:
         old = next((p for p in parts for v in OLD_EVAL_VERSIONS
                     if p == v or p.startswith(v + ".")), None)
         if old is not None:
-            raise SystemExit(f"[vlm] refused: {path} is under {old}, a subset before the "
-                             f"final round of 2026-11-04 (its records are the old questions); "
+            raise SystemExit(f"[vlm] refused: {path} is under {old}, an older evaluation "
+                             f"subset (its records are older questions); "
                              f"use {EVAL_VERSION}/ (the same layout)")
 
 
@@ -150,7 +151,7 @@ def v2_class(record: dict) -> str:
     return str(check.get("class") or "?")
 
 
-#: The largest share one answer may have inside a V4 verb + class of the subset (final review I1).
+#: The largest share one answer may have inside a V4 verb + class of the subset.
 V4_MAX_MAJORITY = 0.6
 
 
@@ -168,9 +169,8 @@ def v4_verb(record: dict) -> str:
 def balance_v2_units(units: Sequence["Unit"], seed: int) -> list["Unit"]:
     """V2's pool thinned for the draw, per desktop and class (a screw role for the counts):
     no answer more often than all the others together, a class whose answer never changes
-    left out. The export no longer thins V2 (the owner's 2026-11-04 expansion asks every
-    visible part); the subset is balanced here instead, as before, so the class alone does
-    not answer it."""
+    left out. The export does not thin V2 (it asks about every visible part); the subset
+    is balanced here instead, so the class alone does not answer it."""
     cells: dict[tuple, dict[str, list]] = defaultdict(lambda: defaultdict(list))
     for u in units:
         r = u.records[0]
@@ -235,9 +235,9 @@ def strata(record: dict) -> tuple[str, ...]:
     if task == "V3":
         return (f"verb={answer.get('verb')}",)
     if task == "V4":
-        # the class the question names first, its verb, then yes / no inside them (final
-        # review I1: "motherboard" was "no" 51 of 56 times in eval_v2) -- :func:`balance_v4`
-        # keeps each verb + class's yes / no within V4_MAX_MAJORITY before the draw
+        # the class the question names first, its verb, then yes / no inside them (otherwise
+        # a class such as "motherboard" is almost always "no") -- :func:`balance_v4` keeps
+        # each verb + class's yes / no within V4_MAX_MAJORITY before the draw
         feasible = not label.get("negative")
         return ((f"class={v4_class(record)}", f"verb={v4_verb(record)}",
                  f"feasible={_bool(feasible)}")
@@ -301,7 +301,7 @@ class Unit:
 def units_of(records: Iterable[dict], view: str) -> list[Unit]:
     """Group an export's records into units; V6 pairs share ``label.v6_pair``.
 
-    V3's two forms (owner 2026-11-04) share ``label.v3_pair``, which **is** the free record's
+    V3's two forms share ``label.v3_pair``, which **is** the free record's
     id: the unit keeps the key -- and so the draw -- the free record had alone, and its
     ``roi`` partner rides along with it into the subset."""
     pairs: dict[str, list[dict]] = {}
@@ -387,7 +387,7 @@ def _draw_leaf(units: list[Unit], n: int, seed: int, counts: dict[int, int], cap
     if not units or n <= 0:
         return []
     by_desk: dict[int, list[Unit]] = defaultdict(list)
-    # a unit of the subset before (eval_v2) first, wherever it still exists
+    # a unit of the earlier subset (KEEP_IDS) first, wherever it still exists
     for u in sorted(units, key=lambda u: (not u.kept, _key(seed, u.key))):
         by_desk[u.desktop].append(u)
     first = units[0]
@@ -569,10 +569,10 @@ def build(exports: Sequence, out_dir, *, seed: int = SEED, target_binary: int = 
           keep_audit_ids=KEEP_AUDIT_IDS) -> dict:
     """Draw the subset from ``exports`` and write it under ``out_dir``.
 
-    ``keep_ids`` / ``keep_audit_ids``: the ``ids.txt`` of the subset before and of its audit
-    sample (default: ``configs/vlm_keep/``, eval_v2's) -- inside every stratum a unit holding
-    one of those ids is drawn first, so a record that survives keeps its place; ``None``
-    keeps nothing.
+    ``keep_ids`` / ``keep_audit_ids``: the ``ids.txt`` of an earlier subset and of its audit
+    sample (default: :data:`KEEP_IDS` / :data:`KEEP_AUDIT_IDS`, read only when they exist)
+    -- inside every stratum a unit holding one of those ids is drawn first, so a record that
+    survives keeps its place; ``None`` keeps nothing.
 
     Returns ``{"version", "seed", "targets", "records", "ids", "rows", "by_view",
     "audit", "kept"}``; ``rows`` is the n table.
@@ -624,7 +624,7 @@ def build(exports: Sequence, out_dir, *, seed: int = SEED, target_binary: int = 
               "max_desktop_share": max_share, "records": len(ids),
               "desktops": len({IO.desktop_of(r) for r in all_records}),
               "by_view": by_view, "rows": rows,
-              # the subset before: its ids, how many still exist, how many were drawn again
+              # the earlier subset: its ids, how many still exist, how many were drawn again
               "kept": {"before": len(before), "still_exist": len(survivors),
                        "drawn_again": len(survivors & keep_set(ids))}}
     if audit:
@@ -648,7 +648,7 @@ def _audit(records: list[dict], per_view: dict, out: Path, seed: int, size: int,
     import vlm_sample
 
     desks = {IO.desktop_of(r) for r in records}
-    # V3's roi partners (owner 2026-11-04) are not drawn: the audit keeps its ids, and a roi
+    # V3's roi partners are not drawn: the audit keeps its ids, and a roi
     # record's truth is its free partner's, audited with it
     records = [r for r in records
                if not (r["prompt"]["task"] == "V3" and r["label"].get("v3_form") == "roi")]
@@ -679,7 +679,7 @@ def _audit(records: list[dict], per_view: dict, out: Path, seed: int, size: int,
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     ap.add_argument("--export", nargs="+", required=True,
-                    help="the export-vlm JSONL files, one per unit (vlm_<view>.jsonl, vlm_multi.jsonl)")
+                    help="the question-answer JSONL files, one per unit (vlm_<view>.jsonl, vlm_multi.jsonl)")
     ap.add_argument("--out", required=True, help=f"the subset's directory ({EVAL_VERSION})")
     ap.add_argument("--seed", type=int, default=SEED)
     ap.add_argument("--target-binary", type=int, default=TARGET_BINARY)

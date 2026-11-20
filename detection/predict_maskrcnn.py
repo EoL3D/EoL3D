@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Run a train_maskrcnn.py checkpoint on a make_coco.py split and write COCO-format predictions.
 
-    python predict_maskrcnn.py --gt coco/test.json --ckpt runs/maskrcnn_visible/best.pt \
+    python detection/predict_maskrcnn.py --gt coco/test.json --ckpt runs/maskrcnn_visible/best.pt \
         --out runs/maskrcnn_visible/preds_test.json
 
 The frame is scaled as in training (`size` from the checkpoint), boxes and mask probabilities are mapped back

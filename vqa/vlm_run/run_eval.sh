@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# One evaluation job: subset -> (blind) -> chat -> model -> score. (W4-B)
+# One evaluation job: subset -> (blind) -> chat -> model -> score.
 #
 # Everything is an environment variable so the same file serves the Slurm
 # templates, an interactive node and a laptop:
 #
-#   PACK        the vlmpack copy (required)              e.g. $SCRATCH/vlmpack_2026-11-02
+#   PACK        the question-answer pack (required)      e.g. $DATA/vlm/vlmpack_2026-11-05
 #   VIEW        scan | oak1 | oak2 | rs | multi (required; multi = the action tasks: every
 #               camera of a moment in one request, up to 8 images, or the marked
 #               scanner image alone for V4, V6 multiple choice, V7 and V16)
@@ -12,16 +12,17 @@
 #   MODEL       model id: HF id / local path / API name  (required unless gold)
 #   MODEL_TAG   directory name for the model             (default: MODEL with / -> _)
 #   VARIANT     image | blind | overlay                  (default image; blind = image-ablated;
-#                                                         overlay = GT masks painted on the frame, W4-C)
+#                                                         overlay = GT masks painted on the frame)
 #   OVERLAYS    where the painted frames live / go       (default $PACK/overlays; the pack ships eval_v3's,
 #                                                         missing ones are painted from the .masks.jsonl sidecar)
 #   MASKS       a masks sidecar to paint from            (default: <truth>.masks.jsonl beside the subset)
 #   SUBSET      eval | all | <ids file>                  (default eval: $PACK/eval_v3/$VIEW.jsonl;
-#                                                         a path under eval_v1/ or eval_v2/ is refused)
+#                                                         a path under an older subset is refused)
 #   RUNS        where runs go                            (default $PACK/runs)
-#   TOOLS       the pack's tools directory               (default $PACK/tools)
+#   TOOLS       the tools directory                      (default $PACK/tools; or vqa/ of this repository)
 #   IMAGE_ROOT  what the manifest paths are relative to  (default $PACK/images; see the pack README)
-#   TRUTH       the unit's full export with sidecars     (default: $PACK/$VIEW.jsonl or $PACK/vlm_$VIEW.jsonl)
+#   TRUTH       the unit's full export with sidecars     (default: $PACK/data/vlm_$VIEW.jsonl, else
+#                                                         $PACK/$VIEW.jsonl or $PACK/vlm_$VIEW.jsonl)
 #   CHAT_FORMAT openai | qwen | internvl                 (default openai -- vlm_run reads all three)
 #   ROI         none | view                              (default none)
 #   MAX_SIDE    longest image side sent, pixels          (default: unchanged)
@@ -43,10 +44,10 @@ case "$VIEW" in
   *) echo "VIEW must be scan, oak1, oak2, rs or multi (got $VIEW)" >&2; exit 2 ;;
 esac
 EVAL_VERSION=eval_v3
-# the subset before the 2026-11-03 question redesign: its records are the old questions
+# an older evaluation subset holds records these tools no longer grade
 for p in "${SUBSET:-}" "${TRUTH:-}"; do
   case "/$p/" in
-    */eval_v1/*|*/eval_v2/*) echo "[run_eval] refused: $p is under an old subset (eval_v1 / eval_v2), before the final round of 2026-11-04; use $EVAL_VERSION/" >&2; exit 2 ;;
+    */eval_v1/*|*/eval_v2/*) echo "[run_eval] refused: $p is under an older evaluation subset; use $EVAL_VERSION/" >&2; exit 2 ;;
   esac
 done
 BACKEND="${BACKEND:-vllm}"
@@ -71,8 +72,8 @@ if [[ "$VIEW" == "multi" && "$BACKEND" == "vllm" && "$RUN_ARGS" != *--max-images
   RUN_ARGS="$RUN_ARGS --max-images 8"
 fi
 
-# a unit with no record is left out of the pack (manifest.json "units", export_vlmpack.py
-# "empty_units"): its array task has nothing to run and ends cleanly
+# a unit with no record is left out of the pack (manifest.json "units"): its array task
+# has nothing to run and ends cleanly
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 if [[ -z "${TRUTH:-}" && -f "$PACK/manifest.json" ]]; then
   UNITS=" $(PYTHON="$PYTHON" bash "$HERE/pack_units.sh" "$PACK") "

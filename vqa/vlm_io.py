@@ -1,10 +1,11 @@
-"""Shared reading for the W3b VLM scripts (``vlm_references``, ``vlm_to_chat``,
+"""Shared reading for the question-answering scripts (``vlm_references``, ``vlm_to_chat``,
 ``vlm_score``, ``vlm_sample``).
 
-Everything reads an export of ``python -m tda.cli export-vlm`` and its sidecars
--- ``<name>.images_manifest.jsonl``, ``<name>.oracle.jsonl``,
-``<name>.summary.json`` -- and never the database: the evaluation layer has to
-run on a frozen release, on a machine that has none.
+Everything reads a question-answer export (``data/vlm_<unit>.jsonl`` or
+``eval_v3/<unit>.jsonl`` of the pack) and its sidecars --
+``<name>.images_manifest.jsonl``, ``<name>.oracle.jsonl``,
+``<name>.summary.json`` -- and nothing else, so the evaluation runs on the
+released files alone.
 """
 from __future__ import annotations
 

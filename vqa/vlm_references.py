@@ -1,17 +1,17 @@
-"""The reference lines of the VLM evaluation (W3b; minutes 2026-10-31 §3; W4-C).
+"""The reference lines of the question-answering evaluation.
 
-``python scripts/vlm_references.py --export <vlm_scan.jsonl> --out <dir>
+``python vqa/vlm_references.py --export <eval_v3/scan.jsonl> --out <dir>
 [--assets <dir> --image-root <images> [--masks <masks.jsonl> | --coco-root <scanpack>]]``
 
-Reads one export and its sidecars -- never the database -- and writes:
+Reads one export and its sidecars and nothing else, and writes:
 
 * ``blind.jsonl`` -- every record with its images taken away: question and
-  options only, the mark wording of the 2026-11-03 redesign removed ("the RAM
+  options only, the mark wording removed ("the RAM
   module outlined in red" -> "the RAM module", :func:`unmark`); a part named by
   its mark tag alone gets its class phrase beside the tag ("part A" -> "part A
   (a RAM module)", from ``label.mark_names``), and the state oracle's table shows
-  the tag on that part's rows. Only a record whose tag has no name (an export from
-  before ``mark_names``) is left out (``mark_tag``). What a model scores here is
+  the tag on that part's rows. Only a record whose tag has no name (an export
+  without ``mark_names``) is left out (``mark_tag``). What a model scores here is
   template leakage (the export's ``shortcuts`` table is the in-sample upper bound
   of the same thing).
 * ``protocol_prior.jsonl`` + ``protocol_prior.predictions.jsonl`` -- V6 / V7 /
@@ -21,9 +21,9 @@ Reads one export and its sidecars -- never the database -- and writes:
   predictions are graded with :mod:`tda.core.export.vlm_check`, and
   ``protocol_prior.report.json`` gives its accuracy by task -- the line a text
   model reading the log would start from. Its next-action accuracy over coarse
-  ``(verb, class)`` is reported too, the number the 71.8 % probe measured.
+  ``(verb, class)`` is reported too.
 * ``state_oracle.jsonl`` -- every record **except the V2 questions on a hidden part**
-  (``cannot_tell``; V14 merged into V2) with its images replaced
+  (``cannot_tell``) with its images replaced
   by the structured state table of each moment (instances with state, placement
   and, only where that view has confirmed rows, visibility): the "perfect
   perception" upper bound. One table per image in a camera unit, **one per
@@ -33,7 +33,7 @@ Reads one export and its sidecars -- never the database -- and writes:
   a captive screw's tightness keep ``label.image_undecidable = true`` so the
   oracle-vs-VLM gap can leave them out. A V2 question on a part this view cannot
   see asks whether *this view* can settle its state: the table's visibility column
-  is that answer, so the oracle has no such item (W4-C, ``V2-cannot_tell``) and the
+  is that answer, so the oracle has no such item (``V2-cannot_tell``) and the
   summary says how many were left out.
 * ``mask_overlay.jsonl`` (+ ``.images_manifest.jsonl``, with ``--assets``) --
   every eligible record with its frames replaced by a copy on which the
@@ -82,7 +82,7 @@ PRIOR_TASKS = ("V6", "V7", "V16")
 # --------------------------------------------------------------------------- #
 # (i) blind
 # --------------------------------------------------------------------------- #
-#: The mark wording of the redesign of 2026-11-03 ("the RAM module outlined in red"):
+#: The mark wording ("the RAM module outlined in red"):
 #: meaningless without the picture, so the text-only variants drop it.
 MARK_PHRASE = re.compile(r"\s*\(?\b(?:which (?:is|are) |that (?:is|are) )?outlined in red\b\)?")
 #: A part named by its tag alone ("part A", "parts B"): the text variants add its class
@@ -192,7 +192,7 @@ def state_table_text(frame: Optional[dict], world: Optional[World],
         state = entry.get("state") or "?"
         if inst and inst.get("class") == "screw":
             # a picture shows a screw's presence, never its tightness: neither
-            # does the "perfect perception" table (review M)
+            # does the "perfect perception" table
             state = SCREW_PRESENCE.get(state, state)
         bits = [state, entry.get("placement") or "?"]
         if entry.get("visibility"):
@@ -201,8 +201,8 @@ def state_table_text(frame: Optional[dict], world: Optional[World],
     return "\n".join(lines)
 
 
-#: The export unit whose records show one moment from every camera (the redesign of
-#: 2026-11-03); its state oracle gives one table per moment, not one per picture.
+#: The export unit whose records show one moment from every camera; its state oracle
+#: gives one table per moment, not one per picture.
 MULTI_VIEW = "multi"
 
 
@@ -252,8 +252,7 @@ def state_oracle(record: dict, worlds: dict[int, World], frames: dict[str, dict]
 
 
 #: What the state oracle does not answer: a V2 question on a part this view cannot see
-#: (``cannot_tell``, V14 merged into V2) -- the table's visibility column is exactly that
-#: (W4-C). Counted as this key.
+#: (``cannot_tell``) -- the table's visibility column is exactly that. Counted as this key.
 CANNOT_TELL_SKIP = "V2-cannot_tell"
 
 
@@ -439,7 +438,7 @@ def protocol_prior(records: list[dict], worlds: dict[int, World], tax,
             seqs = [_sequence(worlds[d]) for d in pool]
             if not any(seqs):
                 # a prior fitted on nothing answers uniformly, and a number
-                # from it would be reported as the protocol's (review M)
+                # from it would be reported as the protocol's
                 raise PriorRefused(
                     f"protocol prior: no other desktop's log to fit D{desktop} on "
                     f"(training pool {pool or 'empty'}); export more desktops or "
@@ -493,7 +492,7 @@ def protocol_prior(records: list[dict], worlds: dict[int, World], tax,
 # --------------------------------------------------------------------------- #
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
-    ap.add_argument("--export", required=True, help="an export-vlm JSONL")
+    ap.add_argument("--export", required=True, help="a question-answer JSONL")
     ap.add_argument("--out", required=True, help="directory for the three variants")
     ap.add_argument("--train-desktops", default=None,
                     help="e.g. 1-40: fit the protocol prior on these (default: "

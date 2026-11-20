@@ -1,6 +1,6 @@
-"""Turn an export-vlm JSONL (or one of its reference variants) into chat requests (W3b).
+"""Turn a question-answer JSONL (or one of its reference variants) into chat requests.
 
-``python scripts/vlm_to_chat.py --export <vlm_scan.jsonl> [--records <variant.jsonl>]
+``python vqa/vlm_to_chat.py --export <eval_v3/scan.jsonl> [--records <variant.jsonl>]
 --format openai|qwen|internvl --image-root <cache dir> --out <chat.jsonl>
 [--assets <dir>] [--base64] [--roi none|view] [--composite]``
 
@@ -13,7 +13,7 @@
   ``<image>`` placeholders (``Image-1: <image>`` for several).
 
 The question is followed by the lettered options (V6) and by the answer format
-of :data:`tda.core.export.vlm_check.RESPONSE_FORMATS`. Since ``chat-v2`` a
+of :data:`tda.core.export.vlm_check.RESPONSE_FORMATS`. A
 multi-view record (``prompt.image_legend`` / ``label.views``) starts with one
 line naming its images ("Images 1–4: the same moment from the top-down
 scanner, then three side cameras (OAK 1, OAK 2, RealSense)."), a record with
@@ -22,9 +22,9 @@ glossary of ``prompt.terms`` / ``prompt.state_terms`` (``vlm_glossary.py``). ``-
 each image to its pose segment's fixed chassis ROI (from the manifest) -- the
 **same crop for every record of a desktop and view**; ``--roi none`` (the
 default) sends the whole frame. The crop offset and any ``--max-side`` scale
-go to ``meta.transforms`` so ``scripts/vlm_score.py --chat`` can map boxes back.
+go to ``meta.transforms`` so ``vlm_score.py --chat`` can map boxes back.
 
-There is deliberately no crop around a record's own evidence (W3b review S2):
+There is deliberately no crop around a record's own evidence:
 the evidence boxes are label side, and a crop built from them is the answer
 leaking into the picture -- every V2 state question on a visible part has a box and
 nearly no cannot_tell one does, V12's changed pairs have boxes and its no-change pairs
@@ -39,7 +39,7 @@ in the text; a ``blind`` or ``protocol_prior`` one has no image at all.
 Crops and composites are written under ``--assets`` (required for them); the
 source images are only read.
 
-**Marks** (spec 3.5): every ``prompt.marks`` box ``{"image", "bbox", "tag"}`` is
+**Marks**: every ``prompt.marks`` box ``{"image", "bbox", "tag"}`` is
 drawn on its image -- a thin **dashed** red ``#ff1744`` outline at 60 % opacity,
 ``max(2, round(2 * w / 1600))`` px just outside the box, the tag in a small filled
 label **outside** the outline (above its top-left corner, or below it where there is
@@ -62,12 +62,8 @@ import vlm_io as IO  # noqa: E402
 from vlm_glossary import glossary_text, is_presence  # noqa: E402
 from tda.core.export.vlm_check import LETTERS, format_instruction  # noqa: E402
 
-#: Bumped whenever the wording around the question changes (chat-v2: marks, image legend,
-#: glossary; chat-v3: the V6 multiple choice speaks of its one picture; chat-v4: V3's two
-#: forms -- the free question also asks the region, the roi one shows a yellow hint box -- and
-#: the dashed mark-v2 outlines; chat-v5, the final round of 2026-11-04: V6 lists every action
-#: possible now (open / constrained, the options named in words), V7 plans under rules in
-#: words, V2 answers cannot_tell, V14 is gone).
+#: The version of the wording around the question; it is part of ``meta.prompt_template_id``
+#: and of the cache key of a marked picture, and changes whenever that wording does.
 CHAT_FORMAT_ID = "chat-v5"
 SYSTEM = ("You are shown photographs of a desktop PC being disassembled on a bench. "
           "Answer exactly in the JSON format asked for.")
@@ -113,7 +109,7 @@ def _names(views) -> str:
 
 
 def legend_line(record: dict) -> str:
-    """The line naming the images of a multi-view record (spec 3.5), or ``""``.
+    """The line naming the images of a multi-view record, or ``""``.
 
     "Images 1–4: the same moment from the top-down scanner, then three side cameras (OAK 1,
     OAK 2, RealSense)." / "Images 1–4 before, images 5–8 after the action, each: top-down
@@ -146,8 +142,8 @@ def legend_line(record: dict) -> str:
             f"cameras ({_names(views)}).")
 
 
-#: Tasks whose answer is a box or a visibility: a mark there would give the answer away
-#: (spec 3.2), so marks are never drawn nor named on them, whatever the record holds.
+#: Tasks whose answer is a box or a visibility: a mark there would give the answer away,
+#: so marks are never drawn nor named on them, whatever the record holds.
 UNMARKED_TASKS = ("V1", "V8")
 
 
@@ -249,11 +245,11 @@ MARK_TEXT_RGB = (255, 255, 255)
 #: The colour of a hint region (``prompt.hint_regions``, V3's ``roi`` form): a dashed box in
 #: another colour than the marks, with no tag.
 HINT_RGB = (0xFF, 0xD6, 0x00)  # "#ffd600"
-#: How opaque an outline is (owner 2026-11-04): a RAM module under a thin outline stays visible.
+#: How opaque an outline is: a RAM module under a thin outline stays visible.
 MARK_OPACITY = 0.6
 #: Bumped whenever the way a mark is drawn changes (outline, label, font): it is part of the
-#: cache key of a marked copy, so a new style never reuses a stale picture. mark-v2 (owner
-#: 2026-11-04): a thin dashed outline at 60 % opacity, the tag in a label outside the outline.
+#: cache key of a marked copy, so a new style never reuses a stale picture. mark-v2: a thin
+#: dashed outline at 60 % opacity, the tag in a label outside the outline.
 MARK_STYLE_VERSION = "mark-v2"
 
 
@@ -369,7 +365,7 @@ def draw_marks(img, marks, crop=(0, 0), scale: float = 1.0):
     and scaled by ``scale``, so each box gets the same transform as the picture. Returns the
     drawn copy (the caller passes its in-memory copy, never the pack's file).
 
-    mark-v2 (owner 2026-11-04): a **thin dashed** outline (:func:`mark_width`,
+    mark-v2: a **thin dashed** outline (:func:`mark_width`,
     :func:`mark_dash`) at :data:`MARK_OPACITY`, just **outside** the box, so the part under it
     stays visible; the tag sits in a small filled label **outside** the outline -- above the
     top-left corner of the tag's top-most outline, or below it where there is no room
@@ -576,7 +572,7 @@ def convert(record: dict, manifest: dict, images: Images, fmt: str, *,
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
-    ap.add_argument("--export", required=True, help="the export-vlm JSONL (its manifest)")
+    ap.add_argument("--export", required=True, help="the question-answer JSONL (its manifest)")
     ap.add_argument("--records", default=None,
                     help="convert these records instead (a reference variant, a sample)")
     ap.add_argument("--ids", default=None, help="a file of record ids to keep")

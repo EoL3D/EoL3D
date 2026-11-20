@@ -4,10 +4,10 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --partition=gpu               # TODO(hprc): GPU partition name
-#SBATCH --gres=gpu:a100:1             # TODO(hprc): GPU type / count
+#SBATCH --partition=gpu               # EDIT: your GPU partition
+#SBATCH --gres=gpu:a100:1             # EDIT: GPU type / count
 #SBATCH --output=l1_yolo.%j.log
-##SBATCH --account=TODO(hprc)
+##SBATCH --account=EDIT: your account
 # Baseline (a): Ultralytics YOLO segmentation. train -> predict (val, test) -> eval. Needs 00_prepare first.
 # Settings (environment): MODEL (yolo11n-seg.pt), IMGSZ (1280), EPOCHS (100), BATCH (8), SEED (0),
 #                         STAGES ("train predict eval"), RUN (run folder).

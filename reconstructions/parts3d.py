@@ -1,8 +1,8 @@
 """Take each annotated part's 3D points out of a reconstruction of the same scanner frame.
 
-Shipped with the scanner annotations (`annotations/scanner/tools/parts3d.py` on the dataset repository) for the
-3D collaborators; written for the round-3 release (2026-11-02). Needs only numpy and Pillow (huggingface_hub only for
-`where --download`). The guide is `annotations/scanner/HOW_TO_EXTRACT_3D_PARTS.md`.
+The dataset ships the same script as `annotations/scanner/tools/parts3d.py`. Needs only numpy and Pillow
+(huggingface_hub only for `where --download`). The guide is `reconstructions/HOW_TO_EXTRACT_3D_PARTS.md`;
+`--pack` is the dataset's `annotations/scanner` folder.
 
 Subcommands
 -----------
@@ -22,8 +22,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
-import struct
 import sys
 from pathlib import Path
 

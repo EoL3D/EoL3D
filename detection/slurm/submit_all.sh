@@ -1,7 +1,7 @@
 #!/bin/bash
-# Chain the whole Level-1 run: prepare -> (YOLO, Mask R-CNN) in parallel. Run it from the kit folder:
-#   cd <download>/benchmarks/level1 && bash slurm/submit_all.sh          # visible masks
-#   MASKS=amodal bash slurm/submit_all.sh                                 # amodal masks
+# Chain the whole detection run: prepare -> (YOLO, Mask R-CNN) in parallel. It changes to the kit folder itself:
+#   bash detection/slurm/submit_all.sh                                    # visible masks
+#   MASKS=amodal bash detection/slurm/submit_all.sh                       # amodal masks
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export MASKS=${MASKS:-visible}

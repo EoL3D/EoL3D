@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 """Run a trained YOLO segmentation model on a make_coco.py split and write COCO-format predictions.
 
-    python predict_yolo.py --gt coco/test.json --weights runs/yolo/train/weights/best.pt \
+    python detection/predict_yolo.py --gt coco/test.json --weights runs/yolo/train/weights/best.pt \
         --cmap runs/yolo_visible/category_map.json --out runs/yolo/preds_test.json [--imgsz 1280]
 
-Each prediction: image_id, category_id (pack id), score, bbox [x, y, w, h] and segmentation (RLE) in the
+Each prediction: image_id, category_id (dataset id), score, bbox [x, y, w, h] and segmentation (RLE) in the
 full 1600 x 1600 frame. Defaults follow COCO practice: conf 0.001, NMS IoU 0.7, at most 100 per image.
 """
 from __future__ import annotations

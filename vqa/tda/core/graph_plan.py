@@ -4,22 +4,19 @@ Split out of :mod:`tda.core.graph` to keep both modules readable; the reasoning
 layer re-exports :func:`remaining_plan`, so callers still import it from
 ``tda.core.graph``.
 
-It also owns the spec 7.4 acyclicity check, :func:`find_deadlocks`, because
-the planner is where "the graph is usable" is actually decided. The check used
-to be :func:`find_cycles`: a loop in the ``target -> blocker`` graph of
-*instances*, whatever each edge gated. Since an edge only gates some verbs
-(:data:`~tda.core.graph_rules.GATES`, and ``blocked_by`` by its mode) that was
-both too strict and too vague -- a bracket that sits on a screw head is
-``fastened_by(bracket, screw)`` plus ``blocked_by(screw, bracket,
-physical_path)``, which no more deadlocks than a knot ties itself: nothing
-gates ``unscrew``, so the screw comes out and the bracket follows. The panel
-refused that edge and the command line would have exited 1 on a graph the
-planner answers for.
+It also owns the acyclicity check, :func:`find_deadlocks`, because the planner
+is where "the graph is usable" is actually decided. A loop in the
+``target -> blocker`` graph of *instances*, whatever each edge gated, would be
+both too strict and too vague, since an edge only gates some verbs
+(:data:`~tda.core.graph_rules.GATES`, and ``blocked_by`` by its mode) -- a
+bracket that sits on a screw head is ``fastened_by(bracket, screw)`` plus
+``blocked_by(screw, bracket, physical_path)``, which no more deadlocks than a
+knot ties itself: nothing gates ``unscrew``, so the screw comes out and the
+bracket follows.
 
 So a cycle is a **deadlock of actions**, not of instances: the nodes are
 ``(verb, instance)`` pairs, an action depends on the action that clears each
-edge gating it, and a deadlock is a loop among those. One definition, used by
-the editor, the panel, the derivation and the CLI.
+edge gating it, and a deadlock is a loop among those.
 """
 from __future__ import annotations
 
@@ -48,9 +45,9 @@ from tda.core.taxonomy import Taxonomy
 __all__ = ["DeadEnd", "Deadlock", "Plan", "clearing_actions", "find_dead_ends",
            "find_deadlocks", "plan_removal", "remaining_plan"]
 
-#: Spec 7.1's weaker necessity: a preference about the order, never a law. The
+#: The weaker necessity: a preference about the order, never a law. The
 #: checker, the legal-action set and the deadlock check all bind ``required``
-#: only, and now so does the planner when the preference leaves it no plan.
+#: only, and so does the planner when the preference leaves it no plan.
 RECOMMENDED = "recommended"
 
 #: The intermediate verbs :func:`remaining_plan` tries, in order, to bring a
@@ -75,16 +72,14 @@ def _choose_verbs(
     are not gated alike: a ``cable_clip`` is satisfied by ``open`` *or*
     ``release`` -- both leave it ``open`` -- but ``open`` waits on the clip's own
     screws and covers while ``release`` waits only on what covers it. Taking the
-    first answer and stopping called a plannable machine deadlocked (the panel
-    then refused a legitimate edge), so the caller gets the whole set and tries
-    them in order.
+    first answer and stopping would call a plannable machine deadlocked, so the
+    caller gets the whole set and tries them in order.
 
     **Taking the blocker out is always one of them**, last, whenever its class
     can be removed at all: :func:`~tda.core.graph.unmet` counts a ``removed``
     blocker as satisfying *any* edge, so a ``locked_by`` whose blocker no verb
-    can ``open`` is still cleared by removing it. Leaving that out made one
-    ``Add edge`` click enough to write a constraint nothing could ever satisfy,
-    silently (round 4, I-1).
+    can ``open`` is still cleared by removing it. Without it a single added edge
+    could be a constraint nothing can ever satisfy, silently.
     """
     out: list[str] = []
     for verb in VERB_PREFERENCE:
@@ -97,22 +92,11 @@ def _choose_verbs(
     return out
 
 
-def _choose_verb(
-    tax: Taxonomy,
-    rec: InstanceRec,
-    current: str,
-    wanted: frozenset[str],
-) -> Optional[str]:
-    """The least destructive verb that puts ``rec`` into one of ``wanted``."""
-    verbs = _choose_verbs(tax, rec, current, wanted)
-    return verbs[0] if verbs else None
-
-
 def _removal_chain(tax: Taxonomy, rec: InstanceRec, current: str) -> Optional[list[str]]:
     """The verbs that take ``rec`` from ``current`` to ``removed``, in order.
 
     ``None`` when the class cannot be removed at all -- a latch, a lever or the
-    chassis is not in ``remove.applies_to`` (spec 6.3), and asking to plan one
+    chassis is not in ``remove.applies_to``, and asking to plan one
     out of the machine is a question with no answer, not an empty plan.
 
     Otherwise the chain is the intermediate verbs of
@@ -142,7 +126,7 @@ def _removal_chain(tax: Taxonomy, rec: InstanceRec, current: str) -> Optional[li
 def _removal_goal(instances: dict[str, InstanceRec], goal: str) -> str:
     """Which instance actually has to leave for ``goal`` to be gone.
 
-    A captive screw stays in its bracket for good (spec 7.1), so ``removed`` is
+    A captive screw stays in its bracket for good, so ``removed`` is
     reachable for it only through the attached cascade when its parent comes
     out: planning one is really planning its parent.
     """
@@ -155,7 +139,7 @@ def _removal_goal(instances: dict[str, InstanceRec], goal: str) -> str:
 
 
 def _must_remove(by_target: dict[str, list[Edge]], target: str) -> set[str]:
-    """Every node that has to be ``removed`` before ``target`` can be (task W3d).
+    """Every node that has to be ``removed`` before ``target`` can be.
 
     The blockers of the edges on ``target`` that accept nothing but
     ``removed`` (a ``blocked_by`` of mode ``mounted``: the CPU, RAM, cooler and
@@ -184,7 +168,7 @@ class Plan:
 
     actions: tuple[VerbTarget, ...]
     #: ``True`` when the plan ignores the recommended edges because honouring
-    #: them left no plan at all (spec 7.1: ``recommended`` is a preference).
+    #: them left no plan at all (``recommended`` is a preference).
     relaxed: bool = False
     #: The recommended edges that were dropped to get it.
     dropped: tuple[Edge, ...] = ()
@@ -205,7 +189,7 @@ def plan_removal(
 ) -> Optional[Plan]:
     """:func:`remaining_plan`, plus whether a preference was set aside.
 
-    Two passes, because spec 7.1's ``recommended`` is a preference and not a
+    Two passes, because ``recommended`` is a preference and not a
     necessity: first with every active edge, so a plan that can honour the
     preferred order does; and if that leaves no plan, again with the
     ``required`` edges alone, which is what the checker, the legal-action set
@@ -229,7 +213,7 @@ def plan_removal(
     # time, in their stored order, and keep each one that still leaves a plan.
     # That is a *minimal* set (dropping any one of the kept ones back in breaks
     # it), not the smallest possible one, and it costs one planning pass per
-    # recommended edge -- so the panel's note names the edges that are actually
+    # recommended edge -- so a caller can name the edges that are actually
     # in the way instead of every preference on the desktop.
     kept: list[Edge] = []
     plan: Optional[list[VerbTarget]] = None
@@ -267,7 +251,7 @@ def remaining_plan(
     unscrewed, a plug is pulled before its cable is taken out, and a captive
     screw is planned as the removal of the parent it can never leave without.
 
-    **Loose parts first** (R16, ``loose_first``, on by default): while a part
+    **Loose parts first** (``loose_first``, on by default): while a part
     marked ``attrs.loose`` is still in the machine, nothing else may be done
     (:func:`tda.core.graph.legal_actions`), so the plan starts by taking every
     loose part out -- each through its own removal plan (a loose fan's lead
@@ -279,9 +263,9 @@ def remaining_plan(
     which, and is the call to make when that matters). Returns ``[]`` when the
     goal is already removed, and ``None`` when there is no answer under the
     required edges: the goal is not an instance, its class cannot be removed at
-    all (a latch, a lever, the chassis -- spec 6.3), a blocker can never reach a
+    all (a latch, a lever, the chassis), a blocker can never reach a
     state the edge accepts (a dead end), or the required constraints deadlock
-    (spec 7.4 forbids that, and :func:`find_deadlocks` names the offenders).
+    (which must not happen; :func:`find_deadlocks` names the offenders).
     """
     loose = []
     if loose_first:
@@ -312,7 +296,7 @@ def remaining_plan(
 def _apply_plan_action(instances: dict[str, InstanceRec], sim: dict, action: VerbTarget,
                        tax: Taxonomy) -> None:
     """Fold one planned ``(verb, target)`` into a :data:`FrameState` copy (the attached
-    cascade of spec 3.3 included)."""
+    cascade included)."""
     verb, key = action
     rec = instances.get(key)
     cls = rec.cls if rec is not None else ("cable" if key.startswith(CABLE_PREFIX) else None)
@@ -370,7 +354,7 @@ def _plan_once(
         if new is None:
             return
         sim[key] = new
-        if new == REMOVED and cls != "connector":  # spec 3.3 attached cascade
+        if new == REMOVED and cls != "connector":  # the attached cascade
             for child in children.get(key, ()):
                 sim[child] = REMOVED
 
@@ -430,7 +414,7 @@ def _plan_once(
             rec = InstanceRec(key=key, desktop=0, cls="cable")
         verbs = _choose_verbs(tax, rec, current, wanted)
         if key in must_remove:
-            # this part has to come out for the goal anyway (task W3d): take it
+            # this part has to come out for the goal anyway: take it
             # out the first time it is in the way rather than swing it aside now
             # and come back for it. Only a reorder of the alternatives this edge
             # already allows (the ones `clearing_actions` lists too, so the
@@ -468,7 +452,7 @@ def _plan_once(
 
 
 # --------------------------------------------------------------------------- #
-# spec 7.4: no deadlock (the acyclicity check)
+# no deadlock (the acyclicity check)
 # --------------------------------------------------------------------------- #
 @dataclass(frozen=True)
 class Deadlock:
@@ -497,9 +481,9 @@ def _binding(edges: Iterable[Edge], necessity: str = "required") -> list[Edge]:
     ``necessity`` is the weakest level to weigh, like
     :func:`~tda.core.graph.unmet`: the default ``required`` is what a deadlock
     is judged on, because a ``recommended`` edge is a preference the planner
-    drops rather than fails on. ``recommended`` weighs both, which is how the
-    panel finds preferences that contradict each other and says so without
-    refusing anything.
+    drops rather than fails on. ``recommended`` weighs both, which is how
+    preferences that contradict each other are found without refusing
+    anything.
     """
     return [e for e in active_edges(edges)
             if e.type in REQUIRED_STATES
@@ -514,7 +498,7 @@ def _simulated(edges: list[Edge], instances: dict[str, InstanceRec], tax: Taxono
 
     With no frame state it is the state before step 1 -- the class defaults,
     except where ``initial`` (:func:`tda.core.states.initial_overrides`) says
-    an instance added in S1 starts otherwise.
+    an instance added by hand starts otherwise.
     """
     state = state if state is not None else initial_state(instances, tax, initial)
     sim = {key: inst.state for key, inst in state.items()}
@@ -523,11 +507,6 @@ def _simulated(edges: list[Edge], instances: dict[str, InstanceRec], tax: Taxono
     for key, rec in instances.items():
         sim.setdefault(key, tax.default_state(rec.cls))
     return sim
-
-
-#: What :func:`clearing_actions` says when the edge needs nothing done at all
-#: (the blocker already satisfies it, or is not a node of this desktop).
-SATISFIED: list[VerbTarget] = []
 
 
 def clearing_actions(
@@ -639,7 +618,7 @@ class DeadEnd:
     Not a deadlock: no loop, just a constraint no action satisfies -- a blocker
     that can neither reach a state the edge accepts nor be removed (the chassis,
     a latch, a lever). It is a modelling gap, so nothing is refused over it, but
-    it is never silent either: the panel says so and ``constraints`` lists it.
+    it is never silent either: the annotation tool lists it.
     """
 
     instance: str
@@ -647,9 +626,8 @@ class DeadEnd:
     action: VerbTarget
 
     def label(self) -> str:
-        """``motherboard.01: nothing can clear locked_by(motherboard.01, chassis)``."""
-        return (f"{self.instance} 无法排出拆解计划：没有动作能解除 {self.edge.label()} / "
-                f"no plan for {self.instance}: nothing can clear {self.edge.label()}")
+        """``no plan for motherboard.01: nothing can clear locked_by(motherboard.01, chassis)``."""
+        return f"no plan for {self.instance}: nothing can clear {self.edge.label()}"
 
 
 def find_dead_ends(
@@ -665,7 +643,7 @@ def find_dead_ends(
     to give way and that nothing can make give way. An instance stuck only
     inside a loop is **not** listed here -- :func:`find_deadlocks` names that,
     and the two together explain every ``remaining_plan`` that answers ``None``
-    apart from classes that cannot be removed at all (spec 6.3). ``initial``:
+    apart from classes that cannot be removed at all. ``initial``:
     see :func:`_simulated`.
     """
     waits, doable, sim = _analyse(edges, instances, tax, state, "required", initial)
@@ -723,7 +701,7 @@ def find_deadlocks(
     necessity: str = "required",
     initial: Optional[Mapping[str, str]] = None,
 ) -> list[Deadlock]:
-    """Every deadlock of actions the graph holds (spec 7.4), in a stable order.
+    """Every deadlock of actions the graph holds, in a stable order.
 
     Nodes are ``(verb, instance)`` actions reachable from some part's removal;
     ``(v, T)`` waits on :func:`clearing_actions` of every binding edge ``(T, B)``

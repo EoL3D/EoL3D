@@ -1,4 +1,4 @@
-"""Small helpers shared by the Level-1 benchmark scripts (no third-party imports at module level)."""
+"""Small helpers shared by the detection kit scripts (no third-party imports at module level)."""
 from __future__ import annotations
 
 import json

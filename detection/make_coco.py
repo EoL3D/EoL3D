@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Merge the per-desktop scanner annotations into standard COCO train / val / test files.
 
-Input : the scanner pack (Hugging Face `annotations/scanner/`, one `D<nn>/annotations.json` per desktop)
+Input : the scanner annotations (Hugging Face `annotations/scanner/`, one `D<nn>/annotations.json` per desktop)
         and `splits.json` (12 test / 54 train desktops).
 Output: <out>/train.json, val.json, test.json, stats.json, stats.md, make_coco_args.json
 
@@ -12,7 +12,7 @@ Output: <out>/train.json, val.json, test.json, stats.json, stats.md, make_coco_a
 
 Image ids are the pack's own (already unique across desktops, checked); annotation ids are renumbered
 1..N per output file. `file_name` is `D<nn>/images/S<nn>.png`, relative to `info.image_root`
-(the absolute path of the pack folder on this machine; override with `--image-root-in-json`).
+(the absolute path of `annotations/scanner` on this machine; override with `--image-root-in-json`).
 
 Masks (`--masks`):
   visible (default)  `segmentation` = the confirmed visible mask; fully covered parts (pack crowd rows:
@@ -196,7 +196,7 @@ def split_stats(coco, reasons):
 
 def stats_markdown(stats, args):
     splits = [s for s in ("train", "val", "test") if s in stats]
-    lines = [f"# Level-1 COCO files: `--masks {args.masks}`"
+    lines = [f"# COCO files: `--masks {args.masks}`"
              + (" `--clean-only`" if args.clean_only else "")
              + (f" `--min-area {args.min_area}`" if args.min_area else ""), ""]
     lines.append("| | " + " | ".join(splits) + " |")

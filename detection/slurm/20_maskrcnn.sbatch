@@ -4,10 +4,10 @@
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=64G
-#SBATCH --partition=gpu               # TODO(hprc): GPU partition name
-#SBATCH --gres=gpu:a100:1             # TODO(hprc): GPU type / count
+#SBATCH --partition=gpu               # EDIT: your GPU partition
+#SBATCH --gres=gpu:a100:1             # EDIT: GPU type / count
 #SBATCH --output=l1_maskrcnn.%j.log
-##SBATCH --account=TODO(hprc)
+##SBATCH --account=EDIT: your account
 # Baseline (b): torchvision Mask R-CNN R50-FPN (v2, COCO weights). train -> predict (val, test) -> eval.
 # Settings (environment): SIZE (1280), EPOCHS (24), BATCH (4), LR (0.02 at batch 16, scaled linearly),
 #                         SEED (0), ARCH (v2 | v1), STAGES ("train predict eval"), RUN (run folder).
